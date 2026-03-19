@@ -1,0 +1,42 @@
+# Talos patch for persistent storage workers: resilience-d01, d02, d03
+#
+# Key responsibilities:
+#   - OS install on NVMe boot disk (/dev/nvme0n1) — confirmed from live node
+#   - Fabric A (1GbE): Management / K8s API
+#   - Fabric B (2.5GbE): Ceph OSD replication with MTU 9000 (Jumbo Frames)
+#   - Mark Intel DC SSD (/dev/sda) as "unmanaged" so Rook-Ceph can claim it raw
+#   - lm-sensors extension for thermal monitoring
+
+machine:
+  install:
+    # Boot disk — NVMe system drive (confirmed: nvme0n1 has existing partitions)
+    disk: /dev/nvme0n1
+    image: ghcr.io/siderolabs/installer:v1.9.0
+    bootloader: true
+    wipe: true
+
+  network:
+    # hostname is set per-node via a node-specific overlay patch;
+    # this file sets the shared config for all storage workers
+    interfaces:
+      - interface: enp0s31f6         # Fabric A — Management (1GbE built-in NIC)
+        dhcp: false
+        # IP is set in per-node overlay (see worker-d01-patch.yaml etc.)
+        mtu: 1500
+
+      - interface: enp3s0            # Fabric B — Ceph replication (2.5GbE M.2 NIC)
+        dhcp: false
+        mtu: 9000                    # Jumbo Frames for Ceph OSD traffic
+        # No IP needed — Rook-Ceph binds directly to this interface
+
+  kubelet:
+    extraArgs:
+      node-labels: "node-role/storage=true,topology.kubernetes.io/zone=dell-storage"
+
+  # Prevent Talos from formatting the Intel DC SSD so Rook can claim it
+  # Talos will leave /dev/sda completely untouched (confirmed: sda, no partitions)
+  disks:
+    - device: /dev/sda
+      partitions: []                 # Explicitly empty — hands off to Rook-Ceph
+
+  # lm-sensors: baked into the installer image schematic, not a machine config field

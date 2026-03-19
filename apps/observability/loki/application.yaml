@@ -1,0 +1,64 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki-stack
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki-stack
+    targetRevision: "2.10.2"
+    helm:
+      values: |
+        loki:
+          enabled: true
+          persistence:
+            enabled: true
+            storageClassName: ceph-block
+            size: 20Gi
+          config:
+            schema_config:
+              configs:
+                - from: "2024-01-01"
+                  store: boltdb-shipper
+                  object_store: filesystem
+                  schema: v11
+                  index:
+                    prefix: index_
+                    period: 24h
+            retention_period: 744h    # 31 days
+          # Ship logs to S3 (TrueNAS MinIO) for long-term storage
+          # config.storage_config can be extended here
+
+        promtail:
+          enabled: true
+          config:
+            clients:
+              - url: http://loki:3100/loki/api/v1/push
+            scrape_configs:
+              - job_name: kubernetes-pods
+                kubernetes_sd_configs:
+                  - role: pod
+                pipeline_stages:
+                  - cri: {}
+                relabel_configs:
+                  - source_labels: [__meta_kubernetes_pod_node_name]
+                    target_label: node
+                  - source_labels: [__meta_kubernetes_namespace]
+                    target_label: namespace
+                  - source_labels: [__meta_kubernetes_pod_name]
+                    target_label: pod
+
+        grafana:
+          # Grafana is deployed by kube-prometheus-stack; skip here
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

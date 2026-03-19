@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: akash-provider
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://akash-network.github.io/helm-charts
+    chart: akash-provider
+    targetRevision: "9.0.0"
+    helm:
+      values: |
+        # Provider identity — wallet key injected via ESO
+        global:
+          akash:
+            node: "https://rpc.akashnet.net:443"
+            chainid: "akashnet-2"
+            net: mainnet
+
+        provider:
+          # Provider domain — public-facing endpoint for bids
+          # TODO: set this to your real public domain once Akash is being configured
+          host: CHANGEME
+          attributes:
+            - key: region
+              value: us-east
+            - key: organization
+              value: resilience-lab
+            - key: tier
+              value: community
+
+        # Wallet mnemonic injected at runtime via ExternalSecret
+        # Never stored in git
+        env:
+          - name: AKASH_MNEMONIC
+            valueFrom:
+              secretKeyRef:
+                name: akash-wallet
+                key: mnemonic
+
+        # Schedule only on ephemeral worker nodes (d04–d06)
+        nodeSelector:
+          node-role/akash-provider: "true"
+        tolerations:
+          - key: "akash.network/provider"
+            operator: "Equal"
+            value: "true"
+            effect: "NoSchedule"
+
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            memory: "1Gi"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: akash-services
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

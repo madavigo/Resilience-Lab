@@ -1,0 +1,39 @@
+# =============================================================================
+# Resilience-Lab — .gitignore
+# This repo is 100% public-safe. These patterns ensure secrets never land here.
+# =============================================================================
+
+# --- Talos generated configs (contain machine secrets) ---
+talos/generated/
+talos/secrets/secrets.yaml
+talos/secrets/talosconfig
+
+# --- kubeconfig ---
+*.kubeconfig
+kubeconfig
+
+# --- Vault init output (contains unseal keys + root token) ---
+vault-init.json
+vault-keys.json
+
+# --- Terraform / OpenTofu state ---
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# --- Helm values overrides with secrets ---
+*-secret-values.yaml
+*-private-values.yaml
+
+# --- Editor / OS ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Build artifacts ---
+dist/
+build/

@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: etcd-backup
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/madavigo/Resilience-Lab.git
+    targetRevision: main
+    path: apps/infrastructure/etcd-backup
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: etcd-backup
+  ignoreDifferences:
+    - group: batch
+      kind: CronJob
+      jsonPointers:
+        - /spec/schedule
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

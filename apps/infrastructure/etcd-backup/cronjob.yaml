@@ -1,0 +1,238 @@
+# Tier 1 DR — etcd snapshot CronJob
+# Runs every 4 hours on the control plane node.
+# Phase 1: Ships snapshots to TrueNAS via NFS.
+# Phase 2: Also uploads to MinIO (uncomment when Vault/ESO are live).
+# Retention: 7 days of snapshots.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: etcd-backup
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: etcd-backup
+  namespace: etcd-backup
+---
+# RBAC — needs host-network access to reach Talos API
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: etcd-backup
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: etcd-backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: etcd-backup
+subjects:
+  - kind: ServiceAccount
+    name: etcd-backup
+    namespace: etcd-backup
+---
+# NFS PV — TrueNAS share for etcd snapshots
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: etcd-backup-nfs
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  nfs:
+    server: 10.10.67.170
+    path: /mnt/SATA1/NFS/penguinhiding/resilience-lab
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: etcd-backup-nfs
+  namespace: etcd-backup
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: etcd-backup-nfs
+  resources:
+    requests:
+      storage: 10Gi
+---
+# ┌──────────────────────────────────────────────────────────────────┐
+# │ Phase 2: Uncomment when Vault + ESO are deployed                │
+# │ This ExternalSecret pulls MinIO creds from Vault for S3 upload  │
+# └──────────────────────────────────────────────────────────────────┘
+# ---
+# apiVersion: external-secrets.io/v1beta1
+# kind: ExternalSecret
+# metadata:
+#   name: minio-credentials
+#   namespace: etcd-backup
+# spec:
+#   refreshInterval: 1h
+#   secretStoreRef:
+#     name: vault-backend
+#     kind: ClusterSecretStore
+#   target:
+#     name: minio-credentials
+#     creationPolicy: Owner
+#   data:
+#     - secretKey: access_key
+#       remoteRef:
+#         key: secret/resilience-lab/minio
+#         property: access_key
+#     - secretKey: secret_key
+#       remoteRef:
+#         key: secret/resilience-lab/minio
+#         property: secret_key
+#     - secretKey: endpoint
+#       remoteRef:
+#         key: secret/resilience-lab/minio
+#         property: endpoint
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-snapshot
+  namespace: etcd-backup
+spec:
+  # Every 4 hours
+  schedule: "0 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: etcd-backup
+          # Must run on the NUC control plane node
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          tolerations:
+            - key: "node-role.kubernetes.io/control-plane"
+              operator: "Exists"
+              effect: "NoSchedule"
+          hostNetwork: true
+          restartPolicy: OnFailure
+          volumes:
+            - name: talosconfig
+              secret:
+                secretName: talosconfig
+                optional: false
+            - name: nfs-backup
+              persistentVolumeClaim:
+                claimName: etcd-backup-nfs
+            - name: shared
+              emptyDir: {}
+          initContainers:
+            - name: fetch-talosctl
+              image: alpine:3.20
+              command:
+                - sh
+                - -c
+                - |
+                  wget -O /shared/talosctl \
+                    https://github.com/siderolabs/talos/releases/download/v1.9.0/talosctl-linux-amd64
+                  chmod +x /shared/talosctl
+              volumeMounts:
+                - name: shared
+                  mountPath: /shared
+          containers:
+            - name: etcd-backup
+              image: alpine:3.20
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  SNAPSHOT="/tmp/etcd-snapshot-${TIMESTAMP}.db"
+
+                  echo "==> Taking etcd snapshot..."
+                  /shared/talosctl --talosconfig /talosconfig/talosconfig \
+                    --endpoints 10.10.67.48 \
+                    --nodes 10.10.67.48 \
+                    etcd snapshot "${SNAPSHOT}"
+
+                  SNAPSHOT_SIZE=$(stat -c%s "${SNAPSHOT}")
+                  echo "==> Snapshot size: ${SNAPSHOT_SIZE} bytes"
+
+                  echo "==> Copying to NFS..."
+                  mkdir -p /backup/etcd
+                  cp "${SNAPSHOT}" "/backup/etcd/$(basename ${SNAPSHOT})"
+
+                  echo "==> Pruning snapshots older than 7 days..."
+                  find /backup/etcd -name "etcd-snapshot-*.db" -mtime +7 -delete 2>/dev/null || true
+
+                  echo "==> Current snapshots on NFS:"
+                  ls -lh /backup/etcd/
+
+                  # ┌──────────────────────────────────────────────────────┐
+                  # │ Phase 2: Uncomment for MinIO dual-target upload      │
+                  # │ Requires minio-credentials ExternalSecret above      │
+                  # └──────────────────────────────────────────────────────┘
+                  # if [ -n "${MINIO_ENDPOINT:-}" ]; then
+                  #   echo "==> Uploading to MinIO (TrueNAS)..."
+                  #   mc alias set truenas \
+                  #     "${MINIO_ENDPOINT}" \
+                  #     "${MINIO_ACCESS_KEY}" \
+                  #     "${MINIO_SECRET_KEY}" \
+                  #     --insecure
+                  #   mc cp "${SNAPSHOT}" \
+                  #     "truenas/etcd-backups/$(basename ${SNAPSHOT})"
+                  #   echo "==> Pruning MinIO snapshots older than 7 days..."
+                  #   mc rm --recursive --force \
+                  #     --older-than 168h \
+                  #     truenas/etcd-backups/
+                  # fi
+
+                  rm -f "${SNAPSHOT}"
+                  echo "==> Done. Snapshot: etcd-snapshot-${TIMESTAMP}.db"
+              # ┌──────────────────────────────────────────────────────┐
+              # │ Phase 2: Uncomment for MinIO env vars                │
+              # └──────────────────────────────────────────────────────┘
+              # env:
+              #   - name: MINIO_ENDPOINT
+              #     valueFrom:
+              #       secretKeyRef:
+              #         name: minio-credentials
+              #         key: endpoint
+              #   - name: MINIO_ACCESS_KEY
+              #     valueFrom:
+              #       secretKeyRef:
+              #         name: minio-credentials
+              #         key: access_key
+              #   - name: MINIO_SECRET_KEY
+              #     valueFrom:
+              #       secretKeyRef:
+              #         name: minio-credentials
+              #         key: secret_key
+              volumeMounts:
+                - name: talosconfig
+                  mountPath: /talosconfig
+                  readOnly: true
+                - name: nfs-backup
+                  mountPath: /backup
+                - name: shared
+                  mountPath: /shared
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  memory: "256Mi"

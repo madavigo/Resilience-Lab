@@ -1,0 +1,31 @@
+# Talos patch for ephemeral Akash workers: resilience-d04, d05, d06
+#
+# Key responsibilities:
+#   - OS install on SATA/M.2 boot disk
+#   - Fabric A (1GbE): Management / K8s API only
+#   - No dedicated storage NIC needed (no Ceph participation)
+#   - Label for Akash tenant scheduling + VLAN 700 isolation
+
+machine:
+  install:
+    disk: /dev/nvme0n1
+    image: ghcr.io/siderolabs/installer:v1.9.0
+    bootloader: true
+    wipe: false
+
+  network:
+    interfaces:
+      - interface: enp0s31f6         # Fabric A — Management (1GbE)
+        dhcp: false
+        mtu: 1500
+
+      # VLAN 700 — Akash tenant workload isolation
+      - interface: enp0s31f6.700
+        dhcp: false
+        vip: {}                      # No VIP; subinterface for tenant traffic only
+
+  kubelet:
+    extraArgs:
+      node-labels: "node-role/akash-provider=true,topology.kubernetes.io/zone=dell-ephemeral"
+      # Taint so only Akash-tolerating workloads land here
+      register-with-taints: "akash.network/provider=true:NoSchedule"

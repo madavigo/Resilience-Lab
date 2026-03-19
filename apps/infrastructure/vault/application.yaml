@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    chart: vault
+    targetRevision: "0.28.1"
+    helm:
+      values: |
+        global:
+          enabled: true
+          tlsDisable: false
+
+        server:
+          # Dev mode is OFF — this is a real, unsealed Vault
+          dev:
+            enabled: false
+
+          ha:
+            enabled: false   # Single-master lab; no HA needed
+            replicas: 1
+
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: selfsigned-issuer
+            hosts:
+              - host: vault.lab.local   # update to match your DNS
+                paths:
+                  - /
+            tls:
+              - secretName: vault-tls
+                hosts:
+                  - vault.lab.local
+
+          dataStorage:
+            enabled: true
+            size: 10Gi
+            storageClass: ceph-block
+
+          auditStorage:
+            enabled: true
+            size: 5Gi
+            storageClass: ceph-block
+
+        ui:
+          enabled: true
+
+        injector:
+          # Using External Secrets Operator instead of Vault Agent Injector
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
