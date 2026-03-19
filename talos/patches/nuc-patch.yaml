@@ -1,0 +1,42 @@
+# Talos patch for the NUC 11 control plane node (resilience-nuc)
+# Applied on top of the generated controlplane.yaml
+#
+# Key responsibilities:
+#   - Pin install to NVMe disk
+#   - Set static hostname
+#   - Configure Management NIC (enp89s0) on Fabric A (1GbE)
+#   - Enable etcd snapshot extensions
+
+machine:
+  install:
+    disk: /dev/nvme0n1
+    image: ghcr.io/siderolabs/installer:v1.9.0
+    bootloader: true
+    wipe: true
+
+  network:
+    hostname: resilience-nuc
+    interfaces:
+      - interface: enp89s0            # Fabric A — Management (1GbE built-in)
+        addresses:
+          - 10.10.67.48/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 10.10.67.1
+        dhcp: false
+        mtu: 1500
+
+  # No SSH — all management via Talos API
+  # kubelet extra-args for single-master topology
+  kubelet:
+    extraArgs:
+      node-labels: "topology.kubernetes.io/zone=nuc"
+
+cluster:
+  # Allow scheduling on control plane (single-master lab)
+  allowSchedulingOnControlPlanes: true
+
+  etcd:
+    # Expose etcd metrics for Prometheus scraping
+    extraArgs:
+      listen-metrics-urls: "http://0.0.0.0:2381"

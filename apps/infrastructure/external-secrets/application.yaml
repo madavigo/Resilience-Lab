@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-secrets
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.external-secrets.io
+    chart: external-secrets
+    targetRevision: "0.10.4"
+    helm:
+      values: |
+        installCRDs: true
+        replicaCount: 1
+        serviceMonitor:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-secrets
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+# ClusterSecretStore — points ESO at the in-cluster Vault instance
+# Vault token is bootstrapped manually once, then managed by ESO itself
+apiVersion: external-secrets.io/v1beta1
+kind: ClusterSecretStore
+metadata:
+  name: vault-backend
+spec:
+  provider:
+    vault:
+      server: "https://vault.vault.svc.cluster.local:8200"
+      path: "secret"
+      version: "v2"
+      caProvider:
+        type: Secret
+        name: vault-tls
+        namespace: vault
+        key: ca.crt
+      auth:
+        tokenSecretRef:
+          name: vault-token
+          namespace: external-secrets
+          key: token

@@ -1,0 +1,11 @@
+# Per-node overlay for resilience-d03 — merged with worker-storage-patch.yaml
+machine:
+  network:
+    hostname: resilience-d03
+    interfaces:
+      - interface: enp0s31f6
+        addresses:
+          - 10.10.67.42/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 10.10.67.1

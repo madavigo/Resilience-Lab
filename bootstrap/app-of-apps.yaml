@@ -1,0 +1,26 @@
+# App-of-Apps root Application
+# This single manifest is the only thing applied manually.
+# ArgoCD reads this repo and deploys all child Applications in dependency order.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: resilience-lab-root
+  namespace: argocd
+  # Ensure ArgoCD doesn't delete child apps when root is removed
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/madavigo/Resilience-Lab.git
+    targetRevision: main
+    path: apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

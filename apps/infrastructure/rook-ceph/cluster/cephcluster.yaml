@@ -1,0 +1,72 @@
+# Rook-Ceph CephCluster — 3-node OSD pool on Intel DC 480GB SSDs
+# Nodes: resilience-d01, d02, d03
+# Raw capacity: ~1.44TB  |  Usable (3x replication): ~480GB
+apiVersion: ceph.rook.io/v1
+kind: CephCluster
+metadata:
+  name: resilience-ceph
+  namespace: rook-ceph
+spec:
+  cephVersion:
+    image: quay.io/ceph/ceph:v18.2.0   # Reef
+    allowUnsupported: false
+  dataDirHostPath: /var/lib/rook
+  skipUpgradeChecks: false
+  continueUpgradeAfterChecksEvenIfNotHealthy: false
+
+  mon:
+    count: 3
+    allowMultiplePerNode: false
+
+  mgr:
+    count: 1
+    modules:
+      - name: pg_autoscaler
+        enabled: true
+      - name: prometheus
+        enabled: true
+
+  dashboard:
+    enabled: true
+    ssl: true
+
+  monitoring:
+    enabled: true
+    metricsDisabled: false
+
+  network:
+    # Bind Ceph OSD replication to Fabric B (2.5GbE, MTU 9000)
+    # eth1 is the M.2 NIC on all Dell storage nodes
+    provider: host
+    selectors:
+      public:  "eth1"
+      cluster: "eth1"
+
+  crashCollector:
+    disable: false
+
+  storage:
+    useAllNodes: false
+    useAllDevices: false
+    nodes:
+      - name: resilience-d01
+        devices:
+          - name: sdb    # Intel DC P4500 480GB
+      - name: resilience-d02
+        devices:
+          - name: sdb
+      - name: resilience-d03
+        devices:
+          - name: sdb
+
+  resources:
+    osd:
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+      limits:
+        memory: "4Gi"
+
+  disruptionManagement:
+    managePodBudgets: true
+    osdMaintenanceTimeout: 30
