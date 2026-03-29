@@ -78,10 +78,4 @@ Ceph tolerates 1 OSD failure with 3x replication intact.
 
 1. Replace hardware and boot Talos ISO
 2. Apply config with `worker-storage-patch.yaml` + node overlay
-3. Node joins cluster, Ceph auto-rebalances OSDs — no data loss
-
-## Scenario: Ephemeral worker failure (d04–d06)
-
-No persistent data. Node is fully stateless.
-Boot Talos ISO → apply `worker-ephemeral-patch.yaml` + node overlay → done.
-Akash provider reschedules leases automatically.
+3. Node joins cluster, Ceph auto-rebalances OSDs - no data loss

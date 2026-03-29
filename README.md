@@ -25,7 +25,6 @@
 | resilience-d01 | Worker (Ceph) | Dell OptiPlex 7040 Micro (i5-6500T, 64GB RAM, NVMe + 480GB Intel DC SSD) | 10.10.67.40 |
 | resilience-d02 | Worker (Ceph) | Dell OptiPlex 7040 Micro (i5-6500T, 64GB RAM, NVMe + 480GB Intel DC SSD) | 10.10.67.41 |
 | resilience-d03 | Worker (Ceph) | Dell OptiPlex 7040 Micro (i5-6500T, 64GB RAM, NVMe + 480GB Intel DC SSD) | 10.10.67.42 |
-| resilience-d04-d06 | Workers (Ephemeral) | Dell OptiPlex 7040 Micro | 10.10.67.43-45 |
 | TrueNAS | NFS / MinIO backend | - | 10.10.67.170 |
 
 ## The Mission
@@ -33,7 +32,7 @@
 To architect a cluster that is entirely "expendable." Utilizing **Talos OS**, the cluster can be rebuilt from a clean state in under 15 minutes. It is a dual-purpose environment:
 
 1. **The Laboratory:** A sandbox for SRE/Platform engineering experiments.
-2. **The Provider:** A commercial Akash Network node providing compute and storage (Rook-Ceph) to the decentralized marketplace.
+2. **The Provider:** A Rook-Ceph backed storage and compute platform for distributed workloads.
 
 ## Tech Stack
 
@@ -49,9 +48,8 @@ To architect a cluster that is entirely "expendable." Utilizing **Talos OS**, th
 ## Network Architecture
 
 - **Control Plane:** Intel NUC 11 - single-master with automated etcd snapshots every 4 hours.
-- **Compute Plane:** 3-6x Dell OptiPlex 7040 Micro (i5-6500T, 64GB RAM).
+- **Compute Plane:** 3x Dell OptiPlex 7040 Micro (i5-6500T, 64GB RAM).
 - **Storage Plane:** Dedicated 2.5GbE fabric with MTU 9000 (Jumbo Frames) for Ceph OSD replication.
-- **Tenant Isolation:** Public-facing Akash workloads isolated via VLAN 700 and NetworkPolicies.
 
 ## Disaster Recovery
 
@@ -103,6 +101,5 @@ apps/platform/          argocd, ingress-nginx, cert-manager
 apps/infrastructure/    rook-ceph, democratic-csi, vault, external-secrets,
                         etcd-backup, velero, network-policies
 apps/observability/     kube-prometheus-stack, loki
-apps/akash/             provider + wallet ExternalSecret
 docs/                   vault-init-runbook, recovery-runbook
 ```
