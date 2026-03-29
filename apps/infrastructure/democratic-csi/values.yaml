@@ -1,0 +1,41 @@
+csiDriver:
+  name: "org.democratic-csi.nfs"
+
+storageClasses:
+  - name: truenas-nfs
+    defaultClass: false
+    reclaimPolicy: Retain
+    volumeBindingMode: Immediate
+    allowVolumeExpansion: true
+    parameters:
+      fsType: nfs
+
+driver:
+  config:
+    driver: freenas-api-nfs
+    instance_id: ""
+    httpConnection:
+      protocol: https
+      host: 10.10.67.170
+      port: 443
+      allowInsecure: true
+      apiVersion: 2
+      apiKey: ""
+    zfs:
+      datasetParentName: SATA1/k8s/volumes
+      detachedSnapshotsDatasetParentName: SATA1/k8s/snapshots
+      datasetEnableQuotas: true
+      datasetEnableReservation: false
+      datasetPermissionsMode: "0777"
+      datasetPermissionsUser: 0
+      datasetPermissionsGroup: 0
+    nfs:
+      shareAlldirs: false
+      shareAllowedHosts: []
+      shareAllowedNetworks:
+        - 10.10.67.0/24
+      shareMaprootUser: root
+      shareMaprootGroup: root
+
+  existingConfigSecret: truenas-api-credentials
+  secretExtraLabels: {}

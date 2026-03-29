@@ -13,7 +13,7 @@ spec:
       values: |
         global:
           enabled: true
-          tlsDisable: false
+          tlsDisable: true
 
         server:
           # Dev mode is OFF — this is a real, unsealed Vault
@@ -28,15 +28,15 @@ spec:
             enabled: true
             ingressClassName: nginx
             annotations:
-              cert-manager.io/cluster-issuer: selfsigned-issuer
+              cert-manager.io/cluster-issuer: letsencrypt-prod
             hosts:
-              - host: vault.lab.local   # update to match your DNS
+              - host: vault.madavigo.com
                 paths:
                   - /
             tls:
               - secretName: vault-tls
                 hosts:
-                  - vault.lab.local
+                  - vault.madavigo.com
 
           dataStorage:
             enabled: true

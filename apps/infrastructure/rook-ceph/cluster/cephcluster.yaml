@@ -31,7 +31,7 @@ spec:
     ssl: true
 
   monitoring:
-    enabled: true
+    enabled: false
     metricsDisabled: false
 
   network:
@@ -39,8 +39,8 @@ spec:
     # eth1 is the M.2 NIC on all Dell storage nodes
     provider: host
     selectors:
-      public:  "eth1"
-      cluster: "eth1"
+      public:  "enp3s0"
+      cluster: "enp3s0"
 
   crashCollector:
     disable: false
@@ -51,13 +51,13 @@ spec:
     nodes:
       - name: resilience-d01
         devices:
-          - name: sdb    # Intel DC P4500 480GB
+          - name: sda    # Intel DC 480GB
       - name: resilience-d02
         devices:
-          - name: sdb
+          - name: sda
       - name: resilience-d03
         devices:
-          - name: sdb
+          - name: sda
 
   resources:
     osd:
