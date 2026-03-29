@@ -15,6 +15,9 @@ spec:
     repoURL: https://github.com/madavigo/Resilience-Lab.git
     targetRevision: main
     path: apps
+    directory:
+      recurse: true
+      include: "application.yaml"
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
