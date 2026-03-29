@@ -79,3 +79,60 @@ Ceph tolerates 1 OSD failure with 3x replication intact.
 1. Replace hardware and boot Talos ISO
 2. Apply config with `worker-storage-patch.yaml` + node overlay
 3. Node joins cluster, Ceph auto-rebalances OSDs - no data loss
+
+### Zapping a Ceph OSD disk
+
+If a replacement disk (or reused disk) has stale LVM/Ceph/bluestore metadata,
+Rook will refuse to provision an OSD on it. You must zap the disk first.
+
+**Symptoms:**
+- OSD prepare job never runs for the node
+- `talosctl get discoveredvolumes` shows `lvm2-pv` or `bluestore` labels on the disk
+- Operator logs show only 2 of 3 failure domains
+
+**Fix:** Deploy a privileged pod on the affected node to wipe the disk:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: disk-zap-<NODE>
+  namespace: rook-ceph
+spec:
+  restartPolicy: Never
+  nodeName: resilience-<NODE>
+  containers:
+    - name: disk-zap
+      image: quay.io/ceph/ceph:v18.2.0
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -ex
+          sgdisk --zap-all /dev/sda
+          dd if=/dev/zero of=/dev/sda bs=1M count=100
+          wipefs -af /dev/sda
+          dd if=/dev/zero of=/dev/sda bs=1M count=100 seek=400
+          ls /dev/mapper/ceph-* 2>/dev/null && dmsetup remove_all || true
+          rm -rf /dev/ceph-*
+          echo "Disk fully zapped"
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: dev
+          mountPath: /dev
+  volumes:
+    - name: dev
+      hostPath:
+        path: /dev
+EOF
+```
+
+After the pod completes, clean up and restart the operator:
+
+```bash
+kubectl delete pod -n rook-ceph disk-zap-<NODE>
+kubectl delete pod -n rook-ceph -l app=rook-ceph-operator
+```
+
+The operator will rescan disks and provision the OSD automatically.
