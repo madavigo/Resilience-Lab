@@ -21,8 +21,8 @@
 | Authentik | LIVE | SSO/MFA, forward auth on Ceph dashboard |
 | Grafana | LIVE | OIDC via Authentik, grafana.madavigo.com |
 | Prometheus | LIVE | kube-prometheus-stack on truenas-nfs |
-| Loki | PENDING | Log aggregation planned |
-| Velero | PENDING | PVC backups to TrueNAS MinIO planned |
+| Loki | LIVE | Log aggregation with Alloy collectors |
+| Velero | LIVE | Daily PVC backups to TrueNAS MinIO (14-day retention) |
 
 ## Hardware Inventory
 
@@ -66,7 +66,7 @@ To architect a cluster that is entirely "expendable." Utilizing **Talos OS**, th
 |------|--------|--------|----------|-----------|
 | 1 | etcd snapshots (CronJob) | TrueNAS NFS | Every 4 hours | 7 days |
 | 2 | ArgoCD GitOps re-hydration | This repo | On demand | Infinite (git history) |
-| 3 | Velero PVC backups | TrueNAS MinIO | Daily (planned) | 14 days |
+| 3 | Velero PVC backups | TrueNAS MinIO | Daily at 2am | 14 days |
 
 ### DR Test Results - 2026-03-18
 
