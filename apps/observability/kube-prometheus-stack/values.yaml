@@ -1,5 +1,63 @@
 grafana:
   envFromSecret: grafana-oauth
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: resilience-lab
+          orgId: 1
+          folder: Resilience-Lab
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/resilience-lab
+        - name: private-apps
+          orgId: 1
+          folder: Private Apps
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/private-apps
+  dashboards:
+    resilience-lab:
+      ceph-cluster:
+        gnetId: 2842
+        revision: 17
+        datasource: Prometheus
+      ceph-osd:
+        gnetId: 5336
+        revision: 9
+        datasource: Prometheus
+      ceph-pools:
+        gnetId: 5342
+        revision: 9
+        datasource: Prometheus
+      cert-manager:
+        gnetId: 20842
+        revision: 3
+        datasource: Prometheus
+      velero:
+        gnetId: 16829
+        revision: 3
+        datasource: Prometheus
+      node-exporter-full:
+        gnetId: 1860
+        revision: 37
+        datasource: Prometheus
+    private-apps:
+      navidrome:
+        gnetId: 14237
+        revision: 1
+        datasource: Prometheus
   additionalDataSources:
     - name: Loki
       type: loki
