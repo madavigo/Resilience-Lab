@@ -37,3 +37,4 @@ vault-keys.json
 # --- Build artifacts ---
 dist/
 build/
+apps/private/
