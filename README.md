@@ -12,16 +12,23 @@
 | Worker d03 | LIVE | Talos v1.9.0, Ceph storage node |
 | etcd Backup | LIVE | CronJob every 4h to TrueNAS NFS |
 | etcd DR Restore | TESTED | Full destructive restore validated 2026-03-18 |
-| Rook-Ceph | PENDING | Hardware ready, deployment next |
-| ArgoCD / GitOps | PENDING | Bootstrap manifests in repo |
-| Vault / ESO | PENDING | Runbook drafted |
-| Observability | PENDING | Prometheus + Grafana + Loki |
+| Rook-Ceph | LIVE | 3 OSDs on Intel DC SSDs, ceph-block StorageClass |
+| ArgoCD / GitOps | LIVE | App-of-Apps pattern, ingress at argocd.madavigo.com |
+| MetalLB | LIVE | BGP peering with OPNsense (AS 64512/64513) |
+| ingress-nginx | LIVE | TLS via cert-manager + Let's Encrypt (Cloudflare DNS-01) |
+| Democratic-CSI | LIVE | TrueNAS NFS provisioner, truenas-nfs StorageClass |
+| Vault / ESO | LIVE | Secret pipeline operational, vault.madavigo.com |
+| Authentik | LIVE | SSO/MFA, forward auth on Ceph dashboard |
+| Grafana | LIVE | OIDC via Authentik, grafana.madavigo.com |
+| Prometheus | LIVE | kube-prometheus-stack on truenas-nfs |
+| Loki | PENDING | Log aggregation planned |
+| Velero | PENDING | PVC backups to TrueNAS MinIO planned |
 
 ## Hardware Inventory
 
 | Hostname | Role | Hardware | IP |
 |----------|------|----------|----|
-| resilience-nuc | Control Plane | Intel NUC 11 (i7, 64GB RAM, 1TB NVMe) | 10.10.67.48 |
+| resilience-nuc | Control Plane | Intel NUC 11 (i7, 16GB RAM, 1TB NVMe) | 10.10.67.48 |
 | resilience-d01 | Worker (Ceph) | Dell OptiPlex 7040 Micro (i5-6500T, 64GB RAM, NVMe + 480GB Intel DC SSD) | 10.10.67.40 |
 | resilience-d02 | Worker (Ceph) | Dell OptiPlex 7040 Micro (i5-6500T, 64GB RAM, NVMe + 480GB Intel DC SSD) | 10.10.67.41 |
 | resilience-d03 | Worker (Ceph) | Dell OptiPlex 7040 Micro (i5-6500T, 64GB RAM, NVMe + 480GB Intel DC SSD) | 10.10.67.42 |
