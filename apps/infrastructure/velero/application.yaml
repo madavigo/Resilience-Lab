@@ -1,4 +1,4 @@
-# Tier 3 DR — Velero PVC backup to TrueNAS MinIO
+# Tier 3 DR -- Velero PVC backup to TrueNAS MinIO
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -9,66 +9,47 @@ spec:
   source:
     repoURL: https://vmware-tanzu.github.io/helm-charts
     chart: velero
-    targetRevision: "7.2.1"
+    targetRevision: "12.0.0"
     helm:
       values: |
-        # Use MinIO on TrueNAS as S3-compatible backup target
         configuration:
           backupStorageLocation:
-            - name: truenas-minio
+            - name: default
               provider: aws
-              bucket: velero-backups
+              bucket: velero
               default: true
               config:
-                region: us-east-1        # MinIO ignores this but requires a value
-                s3Url: ""                # Injected by ESO ExternalSecret
-                insecureSkipTLSVerify: "true"
+                region: us-east-1
+                s3Url: http://10.10.67.170:9003
                 s3ForcePathStyle: "true"
 
-          volumeSnapshotLocation:
-            - name: csi-snapshots
-              provider: csi
-
         credentials:
-          useSecret: true
-          existingSecret: velero-minio-credentials
+          existingSecret: velero-minio
+
+        snapshotsEnabled: false
+        deployNodeAgent: true
+
+        nodeAgent:
+          podVolumePath: /var/lib/kubelet/pods
 
         initContainers:
           - name: velero-plugin-for-aws
-            image: velero/velero-plugin-for-aws:v1.10.0
+            image: velero/velero-plugin-for-aws:v1.11.1
             volumeMounts:
               - mountPath: /target
                 name: plugins
-          - name: velero-plugin-for-csi
-            image: velero/velero-plugin-for-csi:v0.7.1
-            volumeMounts:
-              - mountPath: /target
-                name: plugins
-
-        snapshotsEnabled: true
-        deployNodeAgent: true
-
-        metrics:
-          enabled: true
-          serviceMonitor:
-            enabled: true
 
         schedules:
-          # Daily backup of all namespaces at 2am, retain 14 days
-          daily-full:
+          daily-pvc-backup:
             disabled: false
             schedule: "0 2 * * *"
             template:
-              ttl: 336h   # 14 days
+              ttl: 336h
               includedNamespaces:
-                - "*"
-              excludedNamespaces:
-                - kube-system
-                - kube-public
-                - rook-ceph      # Ceph handles its own replication
-              storageLocation: truenas-minio
-              volumeSnapshotLocations:
-                - csi-snapshots
+                - vault
+                - authentik
+                - observability
+              defaultVolumesToFsBackup: true
   destination:
     server: https://kubernetes.default.svc
     namespace: velero
@@ -79,11 +60,10 @@ spec:
     syncOptions:
       - CreateNamespace=true
 ---
-# ExternalSecret for Velero → MinIO credentials
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: velero-minio-credentials
+  name: velero-minio
   namespace: velero
 spec:
   refreshInterval: 1h
@@ -91,10 +71,9 @@ spec:
     name: vault-backend
     kind: ClusterSecretStore
   target:
-    name: velero-minio-credentials
+    name: velero-minio
     creationPolicy: Owner
     template:
-      # Velero expects credentials in AWS CLI format
       data:
         cloud: |
           [default]
@@ -103,9 +82,9 @@ spec:
   data:
     - secretKey: access_key
       remoteRef:
-        key: secret/resilience-lab/minio
-        property: access_key
+        key: secret/resilience-lab/velero
+        property: aws-access-key-id
     - secretKey: secret_key
       remoteRef:
-        key: secret/resilience-lab/minio
-        property: secret_key
+        key: secret/resilience-lab/velero
+        property: aws-secret-access-key

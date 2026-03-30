@@ -1,0 +1,59 @@
+grafana:
+  envFromSecret: grafana-oauth
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki.observability.svc.cluster.local:3100
+      isDefault: false
+      jsonData:
+        maxLines: 1000
+  persistence:
+    enabled: true
+    storageClassName: truenas-nfs
+    size: 5Gi
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - grafana.madavigo.com
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.madavigo.com
+  grafana.ini:
+    server:
+      root_url: https://grafana.madavigo.com
+    auth:
+      oauth_auto_login: true
+    auth.generic_oauth:
+      enabled: true
+      name: Authentik
+      allow_sign_up: true
+      scopes: openid profile email
+      auth_url: https://auth.madavigo.com/application/o/authorize/
+      token_url: http://authentik-server.authentik.svc.cluster.local/application/o/token/
+      api_url: http://authentik-server.authentik.svc.cluster.local/application/o/userinfo/
+      role_attribute_path: "contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'"
+
+prometheus:
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: truenas-nfs
+          resources:
+            requests:
+              storage: 20Gi
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: truenas-nfs
+          resources:
+            requests:
+              storage: 5Gi
