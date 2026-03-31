@@ -23,6 +23,7 @@
 | Prometheus | LIVE | kube-prometheus-stack on truenas-nfs |
 | Loki | LIVE | Log aggregation with Alloy collectors |
 | Velero | LIVE | Daily PVC backups to TrueNAS MinIO (14-day retention) |
+| Teleport | LIVE | Zero-trust access proxy, kubectl + TrueNAS SSH audited, teleport.madavigo.com |
 
 ## Hardware Inventory
 
