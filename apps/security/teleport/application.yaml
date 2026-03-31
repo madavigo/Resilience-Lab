@@ -1,0 +1,99 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/madavigo/Resilience-Lab.git
+    targetRevision: HEAD
+    path: apps/security/teleport
+    directory:
+      include: "{certificate.yaml,external-secret.yaml,rbac.yaml}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: teleport
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.releases.teleport.dev
+    chart: teleport-cluster
+    targetRevision: "16.4.7"
+    helm:
+      values: |
+        clusterName: teleport.madavigo.com
+
+        # TLS issued by cert-manager, mounted directly by Teleport proxy
+        # ingress-nginx does NOT terminate Teleport TLS
+        acme: false
+        tls:
+          existingSecretName: teleport-tls
+
+        # Teleport gets its own MetalLB IP -- separate from ingress-nginx (10.10.70.0)
+        service:
+          type: LoadBalancer
+          annotations:
+            metallb.universe.tf/loadBalancerIPs: "10.10.70.1"
+
+        # Auth Service backend -- ceph-block RWO (single replica StatefulSet)
+        persistence:
+          enabled: true
+          storageClassName: ceph-block
+          size: 10Gi
+
+        # Kubernetes proxy (Option D) -- all kubectl flows through Teleport
+        kubeClusterName: resilience-lab
+
+        # Session recordings to TrueNAS MinIO (S3-compatible)
+        # Audit events stored locally (community edition limitation)
+        auth:
+          teleportConfig:
+            teleport:
+              storage:
+                audit_sessions_uri: "s3://teleport-recordings?region=us-east-1&endpoint=http://10.10.67.170:9003&disablesse=true&insecure=true"
+            auth_service:
+              session_recording: "proxy"
+
+        extraEnv:
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: teleport-session-recording
+                key: access-key
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: teleport-session-recording
+                key: secret-key
+
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: teleport
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
