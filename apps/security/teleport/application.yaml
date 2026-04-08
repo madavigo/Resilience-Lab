@@ -31,7 +31,7 @@ spec:
   source:
     repoURL: https://charts.releases.teleport.dev
     chart: teleport-cluster
-    targetRevision: "16.4.7"
+    targetRevision: "16.5.13"
     helm:
       values: |
         clusterName: teleport.madavigo.com
