@@ -1,0 +1,51 @@
+# WorkflowTemplate -- runs riff-poster-sync against Emby RiffTrax library
+# Triggered by the Sensor when Emby fires a new-item webhook
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: rifftrax-poster-sync
+  namespace: argo-events
+spec:
+  entrypoint: sync
+  serviceAccountName: argo-events-sensor
+  ttlStrategy:
+    secondsAfterCompletion: 86400    # keep completed workflows 24h for debugging
+    secondsAfterSuccess: 3600
+    secondsAfterFailure: 86400
+  templates:
+    - name: sync
+      container:
+        image: python:3.12-slim
+        command:
+          - sh
+          - -c
+          - |
+            pip install --quiet git+https://github.com/madavigo/riff-poster-sync.git && \
+            rifftrax-poster-sync sync \
+              --host "$EMBY_HOST" \
+              --api-key "$EMBY_API_KEY" \
+              --library "$LIBRARY" \
+              --cache-dir /tmp/rifftrax-cache
+        env:
+          - name: EMBY_HOST
+            valueFrom:
+              secretKeyRef:
+                name: rifftrax-poster-sync
+                key: emby_host
+          - name: EMBY_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: rifftrax-poster-sync
+                key: emby_api_key
+          - name: LIBRARY
+            valueFrom:
+              secretKeyRef:
+                name: rifftrax-poster-sync
+                key: library
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

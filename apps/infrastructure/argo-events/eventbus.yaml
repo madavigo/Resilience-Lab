@@ -1,0 +1,14 @@
+# NATS JetStream EventBus -- lightweight message broker for Argo Events
+apiVersion: argoproj.io/v1alpha1
+kind: EventBus
+metadata:
+  name: default
+  namespace: argo-events
+spec:
+  jetstream:
+    version: latest
+    replicas: 3
+    persistence:
+      storageClassName: ceph-block
+      accessMode: ReadWriteOnce
+      volumeSize: 2Gi

@@ -1,0 +1,27 @@
+# Second ArgoCD Application for Argo Events supporting resources
+# (EventBus, EventSource, Sensor, WorkflowTemplate, RBAC, ExternalSecret)
+# Deployed after argo-events chart is installed via sync-wave
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-events-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/madavigo/Resilience-Lab.git
+    targetRevision: main
+    path: apps/infrastructure/argo-events
+    directory:
+      include: "{eventbus,eventsource,sensor,workflow-template,rbac,external-secret}.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-events
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
