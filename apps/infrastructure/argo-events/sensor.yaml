@@ -1,0 +1,31 @@
+# Sensor -- watches EventBus for emby-rifftrax events and submits workflow
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: rifftrax-poster-sync
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: argo-events-sensor
+  dependencies:
+    - name: emby-webhook
+      eventSourceName: emby-rifftrax
+      eventName: rifftrax-new-item
+  triggers:
+    - template:
+        name: rifftrax-poster-sync-workflow
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: rifftrax-poster-sync-
+                namespace: argo-events
+              spec:
+                workflowTemplateRef:
+                  name: rifftrax-poster-sync
+      retryStrategy:
+        steps: 3
+        duration: 10s

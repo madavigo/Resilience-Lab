@@ -1,0 +1,55 @@
+# Webhook EventSource -- receives Emby library notifications
+# Emby webhook URL: https://events.madavigo.com/rifftrax-sync
+# Configure in Emby: Settings > Notifications > Webhooks
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: emby-rifftrax
+  namespace: argo-events
+spec:
+  webhook:
+    rifftrax-new-item:
+      # Port the EventSource HTTP server listens on inside the pod
+      port: "12000"
+      endpoint: /rifftrax-sync
+      method: POST
+---
+# Service to expose the EventSource webhook port
+apiVersion: v1
+kind: Service
+metadata:
+  name: emby-rifftrax-eventsource
+  namespace: argo-events
+spec:
+  selector:
+    eventsource-name: emby-rifftrax
+  ports:
+    - port: 12000
+      targetPort: 12000
+---
+# Ingress so Emby (on TrueNAS, outside cluster) can reach the webhook
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: emby-rifftrax-eventsource
+  namespace: argo-events
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+spec:
+  ingressClassName: nginx
+  tls:
+    - secretName: argo-events-tls
+      hosts:
+        - events.madavigo.com
+  rules:
+    - host: events.madavigo.com
+      http:
+        paths:
+          - path: /rifftrax-sync
+            pathType: Prefix
+            backend:
+              service:
+                name: emby-rifftrax-eventsource
+                port:
+                  number: 12000
