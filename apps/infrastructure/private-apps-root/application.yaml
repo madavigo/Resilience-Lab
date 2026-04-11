@@ -1,0 +1,27 @@
+# Root application that sources private app manifests from self-hosted Gitea
+# Gitea repo is LAN-only -- not pushed to public GitHub
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: private-apps-root
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: default
+  source:
+    repoURL: https://git.madavigo.com/matt/private-apps
+    targetRevision: main
+    path: .
+    directory:
+      recurse: true
+      include: "argocd-application.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
