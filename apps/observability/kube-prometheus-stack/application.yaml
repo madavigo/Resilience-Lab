@@ -37,6 +37,8 @@ spec:
         grafana:
           enabled: true
           adminPassword: ""    # Injected via ESO ExternalSecret
+          deploymentStrategy:
+            type: Recreate
           persistence:
             enabled: true
             storageClassName: truenas-nfs
