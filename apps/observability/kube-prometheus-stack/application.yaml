@@ -40,6 +40,7 @@ spec:
             existingSecret: kube-prometheus-grafana
             userKey: admin-user
             passwordKey: admin-password
+          envFromSecret: grafana-oauth
           deploymentStrategy:
             type: Recreate
           persistence:
@@ -57,20 +58,57 @@ spec:
               - secretName: grafana-tls
                 hosts:
                   - grafana.madavigo.com
-          # Pre-provision dashboards
+          grafana.ini:
+            server:
+              root_url: https://grafana.madavigo.com
+            auth:
+              oauth_auto_login: true
+            auth.generic_oauth:
+              enabled: true
+              name: Authentik
+              allow_sign_up: true
+              scopes: openid profile email
+              auth_url: https://auth.madavigo.com/application/o/authorize/
+              token_url: http://authentik-server.authentik.svc.cluster.local/application/o/token/
+              api_url: http://authentik-server.authentik.svc.cluster.local/application/o/userinfo/
+              role_attribute_path: "contains(groups[*], 'authentik Admins') && 'Admin' || 'Viewer'"
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+              folderAnnotation: grafana_folder
+              provider:
+                foldersFromFilesStructure: true
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              access: proxy
+              url: http://loki.observability.svc.cluster.local:3100
+              isDefault: false
+              jsonData:
+                maxLines: 1000
           dashboardProviders:
             dashboardproviders.yaml:
               apiVersion: 1
               providers:
-                - name: default
+                - name: resilience-lab
                   orgId: 1
                   folder: "Resilience-Lab"
                   type: file
                   disableDeletion: false
+                  editable: true
                   options:
-                    path: /var/lib/grafana/dashboards/default
+                    path: /var/lib/grafana/dashboards/resilience-lab
+                - name: private-apps
+                  orgId: 1
+                  folder: "Private Apps"
+                  type: file
+                  disableDeletion: false
+                  editable: true
+                  options:
+                    path: /var/lib/grafana/dashboards/private-apps
           dashboards:
-            default:
+            resilience-lab:
               ceph-cluster:
                 gnetId: 2842
                 revision: 17
@@ -79,12 +117,25 @@ spec:
                 gnetId: 5336
                 revision: 9
                 datasource: Prometheus
-              node-exporter:
+              ceph-pools:
+                gnetId: 5342
+                revision: 9
+                datasource: Prometheus
+              cert-manager:
+                gnetId: 20842
+                revision: 3
+                datasource: Prometheus
+              velero:
+                gnetId: 16829
+                revision: 3
+                datasource: Prometheus
+              node-exporter-full:
                 gnetId: 1860
                 revision: 37
                 datasource: Prometheus
-              kubernetes-cluster:
-                gnetId: 7249
+            private-apps:
+              navidrome:
+                gnetId: 14237
                 revision: 1
                 datasource: Prometheus
 
