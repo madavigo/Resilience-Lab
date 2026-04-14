@@ -12,7 +12,7 @@ spec:
     targetRevision: main
     path: apps/observability/kube-prometheus-stack
     directory:
-      include: "{external-secret,ingresses}.yaml"
+      include: "*.yaml"
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
