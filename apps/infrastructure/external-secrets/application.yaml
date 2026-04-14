@@ -24,6 +24,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
 ---
 # ClusterSecretStore — points ESO at the in-cluster Vault instance
 # Vault token is bootstrapped manually once, then managed by ESO itself
