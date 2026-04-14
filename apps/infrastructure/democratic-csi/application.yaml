@@ -8,8 +8,9 @@ spec:
   source:
     repoURL: https://democratic-csi.github.io/charts/
     chart: democratic-csi
-    targetRevision: "0.14.6"
+    targetRevision: "0.15.1"
     helm:
+      releaseName: truenas-nfs
       values: |
         csiDriver:
           name: "org.democratic-csi.nfs"
@@ -23,35 +24,10 @@ spec:
             parameters:
               fsType: nfs
 
+        # Credentials live in the pre-existing truenas-api-credentials secret
+        # (contains driver-config-file.yaml with apiKey)
         driver:
-          config:
-            driver: freenas-api-nfs
-            instance_id: ""
-            httpConnection:
-              # TrueNAS NFS server on Fabric A (management network)
-              # Credentials injected at runtime via External Secrets
-              protocol: https
-              host: 10.10.67.170      # TrueNAS IP
-              port: 443
-              allowInsecure: true
-              apiVersion: 2
-              username: ""            # populated by ESO ExternalSecret
-              password: ""            # populated by ESO ExternalSecret
-            zfs:
-              datasetParentName: tank/k8s/volumes
-              detachedSnapshotsDatasetParentName: tank/k8s/snapshots
-              datasetEnableQuotas: true
-              datasetEnableReservation: false
-              datasetPermissionsMode: "0777"
-              datasetPermissionsUser: 0
-              datasetPermissionsGroup: 0
-            nfs:
-              shareAlldirs: false
-              shareAllowedHosts: []
-              shareAlowedNetworks:
-                - 10.10.67.0/24
-              shareMaprootUser: root
-              shareMaprootGroup: root
+          existingConfigSecret: truenas-api-credentials
   destination:
     server: https://kubernetes.default.svc
     namespace: democratic-csi
