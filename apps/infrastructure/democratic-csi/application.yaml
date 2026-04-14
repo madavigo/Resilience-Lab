@@ -49,10 +49,34 @@ spec:
             parameters:
               fsType: nfs
 
-        # Credentials live in the pre-existing truenas-api-credentials secret
-        # (contains driver-config-file.yaml with apiKey)
         driver:
           existingConfigSecret: truenas-api-credentials
+          config:
+            driver: freenas-api-nfs
+            instance_id: ""
+            httpConnection:
+              protocol: https
+              host: 10.10.67.170
+              port: 443
+              allowInsecure: true
+              apiVersion: 2
+              apiKey: ""          # overridden by existingConfigSecret at runtime
+            zfs:
+              datasetParentName: SATA1/k8s/volumes
+              detachedSnapshotsDatasetParentName: SATA1/k8s/snapshots
+              datasetEnableQuotas: true
+              datasetEnableReservation: false
+              datasetPermissionsMode: "0777"
+              datasetPermissionsUser: 0
+              datasetPermissionsGroup: 0
+            nfs:
+              shareHost: 10.10.67.170
+              shareAlldirs: false
+              shareAllowedHosts: []
+              shareAllowedNetworks:
+                - 10.10.67.0/24
+              shareMaprootUser: root
+              shareMaprootGroup: root
   destination:
     server: https://kubernetes.default.svc
     namespace: democratic-csi
