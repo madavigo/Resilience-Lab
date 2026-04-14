@@ -13,19 +13,17 @@ spec:
     helm:
       values: |
         global:
-          domain: argocd.lab.local   # update to match your DNS
+          domain: argocd.madavigo.com
         server:
           ingress:
             enabled: true
             ingressClassName: nginx
             annotations:
-              cert-manager.io/cluster-issuer: selfsigned-issuer
+              cert-manager.io/cluster-issuer: letsencrypt-prod
             tls: true
         configs:
           params:
-            # Force HTTPS redirect
-            server.insecure: "false"
-          # Repo credential template — no secrets in git, ESO injects them
+            server.insecure: "true"
           credentialTemplates: {}
   destination:
     server: https://kubernetes.default.svc
