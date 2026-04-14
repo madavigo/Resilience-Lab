@@ -36,7 +36,10 @@ spec:
         # --- Grafana ---
         grafana:
           enabled: true
-          adminPassword: ""    # Injected via ESO ExternalSecret
+          admin:
+            existingSecret: kube-prometheus-grafana
+            userKey: admin-user
+            passwordKey: admin-password
           deploymentStrategy:
             type: Recreate
           persistence:
