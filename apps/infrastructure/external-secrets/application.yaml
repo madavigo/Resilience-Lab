@@ -27,7 +27,7 @@ spec:
       - ServerSideApply=true
 ---
 # ClusterSecretStore — points ESO at the in-cluster Vault instance
-# Vault token is bootstrapped manually once, then managed by ESO itself
+# Uses Kubernetes auth so no static token is required
 apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
@@ -39,7 +39,9 @@ spec:
       path: "secret"
       version: "v2"
       auth:
-        tokenSecretRef:
-          name: vault-token
-          namespace: external-secrets
-          key: token
+        kubernetes:
+          mountPath: "kubernetes"
+          role: "eso-role"
+          serviceAccountRef:
+            name: "external-secrets"
+            namespace: "external-secrets"
