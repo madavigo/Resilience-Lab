@@ -102,6 +102,14 @@ spec:
         # --- kube-state-metrics ---
         kubeStateMetrics:
           enabled: true
+
+        # Disable admission webhooks — they use pre-sync hook jobs that
+        # conflict with ArgoCD selfHeal (hooks get recreated before deletion)
+        prometheusOperator:
+          admissionWebhooks:
+            enabled: false
+            patch:
+              enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
