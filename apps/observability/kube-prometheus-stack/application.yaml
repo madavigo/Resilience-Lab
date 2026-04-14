@@ -19,11 +19,11 @@ spec:
             storageSpec:
               volumeClaimTemplate:
                 spec:
-                  storageClassName: ceph-block
+                  storageClassName: truenas-nfs
                   accessModes: ["ReadWriteOnce"]
                   resources:
                     requests:
-                      storage: 50Gi
+                      storage: 20Gi
             # Scrape etcd metrics from the NUC (exposed on port 2381)
             additionalScrapeConfigs:
               - job_name: etcd
@@ -39,8 +39,8 @@ spec:
           adminPassword: ""    # Injected via ESO ExternalSecret
           persistence:
             enabled: true
-            storageClassName: ceph-block
-            size: 10Gi
+            storageClassName: truenas-nfs
+            size: 5Gi
           ingress:
             enabled: true
             ingressClassName: nginx
@@ -90,7 +90,7 @@ spec:
             storage:
               volumeClaimTemplate:
                 spec:
-                  storageClassName: ceph-block
+                  storageClassName: truenas-nfs
                   accessModes: ["ReadWriteOnce"]
                   resources:
                     requests:
