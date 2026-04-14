@@ -48,6 +48,42 @@ spec:
             size: 5Gi
             storageClass: ceph-block
 
+          # Auto-unseal via postStart lifecycle hook
+          # Runs after Vault container starts, waits for Vault to be ready,
+          # then unseals if sealed using keys from vault-unseal-keys secret
+          extraEnvironmentVars:
+            VAULT_ADDR: "http://127.0.0.1:8200"
+
+          extraSecretEnvironmentVars:
+            - envName: UNSEAL_KEY1
+              secretName: vault-unseal-keys
+              secretKey: key1
+            - envName: UNSEAL_KEY2
+              secretName: vault-unseal-keys
+              secretKey: key2
+            - envName: UNSEAL_KEY3
+              secretName: vault-unseal-keys
+              secretKey: key3
+
+          postStart:
+            - sh
+            - -c
+            - |
+              sleep 5
+              until vault status 2>/dev/null | grep -q "Initialized"; do
+                sleep 2
+              done
+              SEALED=$(vault status 2>/dev/null | grep "^Sealed" | awk '{print $2}')
+              if [ "$SEALED" = "true" ]; then
+                echo "Vault sealed — auto-unsealing..."
+                vault operator unseal "$UNSEAL_KEY1"
+                vault operator unseal "$UNSEAL_KEY2"
+                vault operator unseal "$UNSEAL_KEY3"
+                echo "Auto-unseal complete."
+              else
+                echo "Vault already unsealed."
+              fi
+
         ui:
           enabled: true
 
