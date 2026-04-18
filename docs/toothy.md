@@ -63,7 +63,7 @@ The FastAPI server lives in `src/toothy/server.py`. The agent loop lives in `src
 | `kube_get` | Kubernetes (read) | Get or list resources: pods, deployments, statefulsets, daemonsets, services, jobs, cronjobs, configmaps, nodes, PVCs, PVs, namespaces |
 | `kube_describe` | Kubernetes (read) | Resource detail + recent events from `CoreV1Api.list_namespaced_event` |
 | `kube_logs` | Kubernetes (read) | Pod logs (tail N lines); capped at `LOG_CAP` chars |
-| `search_code` | Codebase | ripgrep over a shallow-cloned Gitea repo; results cached on PVC |
+| `search_code` | Codebase | ripgrep over a shallow-cloned Gitea repo; results cached on PVC. **Requires `GITEA_TOKEN` to have `repo:read` scope on the target repo** — clone will fail silently if the token lacks access (see [Common failure modes](#common-failure-modes)). |
 | `memory_read` | Memory | Read a persistent note by key from PVC (`/var/lib/toothy/memory/<key>.md`) |
 | `memory_write` | Memory | Write/update a persistent note (atomic `os.replace`) |
 
@@ -77,6 +77,8 @@ Large tool outputs are truncated before being sent back to Claude, preventing co
 | `TOOTHY_LOG_CAP` | 20 000 chars | `or "20000"` so `0` / empty falls back to default |
 
 `_cap_diff()` preserves the first and last `cap//2` characters so both the opening and closing hunks of a large diff stay visible.
+
+> **Security note:** Caps also reduce prompt-injection exposure. A diff containing adversarial instructions embedded in comments or strings is truncated before it can dominate the context window. Never remove these caps as "just an optimization."
 
 ---
 
@@ -207,6 +209,8 @@ kubectl logs -n toothy deploy/toothy --tail=100
 
 In Gitea: **repo → Settings → Webhooks → (webhook) → Recent Deliveries**. Each delivery shows the request payload, response code, and response body. A `200 {"status":"queued"}` means Toothy accepted the event. Look in pod logs for the agent output.
 
+> **Single-replica note:** Toothy runs at `replicaCount: 1` intentionally — a code-review agent does not need HA, and running two replicas would cause duplicate reviews. Gitea retries failed webhook deliveries automatically (up to 5 attempts, each a few minutes apart — configurable in **Site Administration → Settings**). If Toothy is mid-rollout when a PR opens, Gitea will retry and the next attempt will succeed once the new pod is ready. For a missed event after all retries are exhausted, use **Recent Deliveries → Redeliver** or comment `@toothy` to trigger an `issue_mention`.
+
 ### Re-trigger a PR review
 
 In Gitea: **webhook → Recent Deliveries → Redeliver**. Or comment `@toothy` on the PR to trigger an `issue_mention` event.
@@ -254,6 +258,17 @@ kubectl exec -n toothy deploy/toothy -- \
 ```
 
 The system prompt is marked `cache_control: ephemeral` so it is cached across turns in the same session (5-minute TTL). Expect `cache_read_tokens` ≈ `input_tokens` on turns 2+.
+
+### Common failure modes
+
+**`search_code` clone failure** — If Toothy logs `fatal: could not read Username for 'https://git.madavigo.com': terminal prompts disabled`, the `GITEA_TOKEN` in the `gitea-token` secret lacks `repo:read` access to the target repository. This happens when a new private repo is added after the token was last set, or if the token was scoped only to specific repos. Fix:
+1. Verify the token has access: `curl -H "Authorization: token <token>" https://git.madavigo.com/api/v1/repos/<owner>/<repo>` — should return 200.
+2. If the token is scoped correctly, force a resync of the ExternalSecret: `kubectl annotate externalsecret -n toothy gitea-token force-sync=$(date +%s) --overwrite`.
+3. If the token needs broader scope, rotate it in Gitea (User Settings → Applications), update Vault at `secret/resilience-lab/toothy`, and resync ESO.
+
+**Webhook 401 bad signature** — The `GITEA_WEBHOOK_SECRET` in the cluster does not match the secret configured in Gitea's webhook settings. Verify the Gitea webhook secret (Settings → Webhooks → Edit → Secret), then check the K8s secret value: `kubectl get secret -n toothy webhook-secret -o jsonpath='{.data.secret}' | base64 -d`.
+
+**Agent posts no comment after queued** — The event was parsed as `None` (wrong action type, e.g., PR synchronized instead of opened). Check pod logs for `parse_event returned None`. To trigger a review manually, comment `@toothy` on the PR.
 
 ---
 
