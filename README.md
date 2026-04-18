@@ -97,7 +97,7 @@ See [`docs/recovery-runbook.md`](docs/recovery-runbook.md) for step-by-step inst
 
 ## Source Control
 
-The canonical source of truth for this repository is **Gitea** (`git.madavigo.com/madavigo/Resilience-Lab`), self-hosted on the lab network. GitHub (`github.com/madavigo/Resilience-Lab`) is a **read-only public mirror** — every commit to Gitea is automatically pushed to GitHub via a Gitea push mirror configured on every commit (`sync_on_commit: true`, 8 h fallback sweep).
+The canonical source of truth for this repository is **Gitea** (`git.madavigo.com/madavigo/Resilience-Lab`), self-hosted on the lab network as a service on TrueNAS — it runs **outside the Kubernetes cluster**, routed through OPNsense HAProxy on the LAN. GitHub (`github.com/madavigo/Resilience-Lab`) is a **read-only public mirror** — every commit to Gitea is automatically pushed to GitHub via a Gitea push mirror configured on every commit (`sync_on_commit: true`, 8 h fallback sweep).
 
 **Why Gitea as primary:**
 - Webhooks to `toothy.madavigo.com` work without any external tunnel; the agent lives on the same LAN.
