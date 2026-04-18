@@ -1,0 +1,55 @@
+runner:
+  image: gitea/act_runner:0.2.11
+  replicas: 1
+
+  gitea:
+    instanceURL: https://git.madavigo.com
+    # Registration token pulled from Vault via ExternalSecret.
+    # To get the token: Gitea → Site Admin → Runners → Create new runner.
+    # Store it at: vault kv put secret/resilience-lab/gitea-runner registration-token=<value>
+    registrationTokenSecret:
+      name: gitea-runner-secrets
+      key: registration-token
+
+  # Labels advertised to Gitea — workflows use `runs-on: ubuntu-latest` or
+  # `runs-on: self-hosted` to target this runner.
+  labels: "ubuntu-latest:docker://node:20-bullseye,self-hosted:docker://node:20-bullseye"
+
+  # Number of concurrent jobs this runner will execute.
+  capacity: 2
+
+dind:
+  image: docker:27.5.1-dind
+  # DinD requires privileged to manage its own namespaces/cgroups.
+  # This is intentional for a build runner; the pod runs in its own namespace.
+  privileged: true
+  storageClass: truenas-nfs
+  storageSize: 20Gi
+
+runnerData:
+  # Persists the .runner registration state so the runner does not re-register
+  # on every pod restart (which would accumulate stale entries in Gitea).
+  storageClass: truenas-nfs
+  storageSize: 1Gi
+
+imagePullSecrets:
+  - name: gitea-registry
+
+resources:
+  runner:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  dind:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+
+vault:
+  secretPath: secret/resilience-lab/gitea-runner
