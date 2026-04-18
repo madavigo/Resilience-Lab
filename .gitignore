@@ -16,11 +16,15 @@ kubeconfig
 vault-init.json
 vault-keys.json
 
+# --- OPNsense API keys ---
+*_apikey.txt
+
 # --- Terraform / OpenTofu state ---
 *.tfstate
 *.tfstate.backup
 .terraform/
 .terraform.lock.hcl
+terraform.tfvars.local
 
 # --- Helm values overrides with secrets ---
 *-secret-values.yaml
