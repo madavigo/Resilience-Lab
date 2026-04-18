@@ -8,7 +8,7 @@ data:
     log:
       level: info
     runner:
-      file: .runner
+      file: /data/.runner
       capacity: {{ .Values.runner.capacity }}
       envs:
         DOCKER_HOST: tcp://localhost:2376
