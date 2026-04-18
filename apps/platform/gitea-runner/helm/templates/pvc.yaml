@@ -12,3 +12,18 @@ spec:
     requests:
       storage: {{ .Values.dind.storageSize }}
 {{- end }}
+---
+# Persists act_runner's .runner registration file so re-registration is skipped
+# on pod restarts and stale Gitea runner entries are not accumulated.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: runner-data
+  namespace: {{ .Release.Namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.runnerData.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.runnerData.storageSize }}

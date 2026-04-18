@@ -46,13 +46,17 @@ spec:
             - sh
             - -c
             - |
-              act_runner register \
-                --instance "$GITEA_INSTANCE_URL" \
-                --token    "$GITEA_RUNNER_REGISTRATION_TOKEN" \
-                --name     "resilience-lab-runner-$(hostname)" \
-                --labels   "$GITEA_RUNNER_LABELS" \
-                --no-interactive && \
-              act_runner daemon --config /config/config.yaml
+              # Only register if .runner state file is absent — prevents accumulating
+              # stale runner entries in Gitea on every pod restart.
+              if [ ! -f /data/.runner ]; then
+                act_runner register \
+                  --instance "$GITEA_INSTANCE_URL" \
+                  --token    "$GITEA_RUNNER_REGISTRATION_TOKEN" \
+                  --name     "resilience-lab-runner" \
+                  --labels   "$GITEA_RUNNER_LABELS" \
+                  --no-interactive
+              fi
+              exec act_runner daemon --config /config/config.yaml
           env:
             - name: GITEA_INSTANCE_URL
               value: {{ .Values.runner.gitea.instanceURL | quote }}
@@ -71,6 +75,23 @@ spec:
               value: /certs/client
           resources:
             {{- toYaml .Values.resources.runner | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "[ -f /data/.runner ]"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "[ -f /data/.runner ]"
+            initialDelaySeconds: 15
+            periodSeconds: 10
           volumeMounts:
             - name: docker-certs
               mountPath: /certs/client
@@ -100,7 +121,8 @@ spec:
         - name: docker-certs
           emptyDir: {}
         - name: runner-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: runner-data
         - name: runner-config
           configMap:
             name: gitea-runner-config
