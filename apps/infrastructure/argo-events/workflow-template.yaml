@@ -21,6 +21,8 @@ spec:
           - -c
           - |
             apt-get update -qq && apt-get install -y -qq git && \
+            echo "machine git.madavigo.com login matt password $GITEA_TOKEN" > /root/.netrc && \
+            chmod 600 /root/.netrc && \
             pip install --quiet git+https://git.madavigo.com/madavigo/riff-poster-sync.git && \
             rifftrax-poster-sync sync \
               --host "$EMBY_HOST" \
@@ -28,6 +30,11 @@ spec:
               --library "$LIBRARY" \
               --cache-dir /tmp/rifftrax-cache
         env:
+          - name: GITEA_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: rifftrax-poster-sync
+                key: gitea_token
           - name: EMBY_HOST
             valueFrom:
               secretKeyRef:
