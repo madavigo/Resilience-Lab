@@ -12,7 +12,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/madavigo/Resilience-Lab.git
+    repoURL: https://git.madavigo.com/madavigo/Resilience-Lab.git
     targetRevision: main
     path: apps
     directory:

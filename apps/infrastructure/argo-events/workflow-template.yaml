@@ -21,7 +21,7 @@ spec:
           - -c
           - |
             apt-get update -qq && apt-get install -y -qq git && \
-            pip install --quiet git+https://github.com/madavigo/riff-poster-sync.git && \
+            pip install --quiet git+https://git.madavigo.com/madavigo/riff-poster-sync.git && \
             rifftrax-poster-sync sync \
               --host "$EMBY_HOST" \
               --api-key "$EMBY_API_KEY" \
