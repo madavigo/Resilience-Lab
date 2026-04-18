@@ -1,0 +1,7 @@
+# The runner needs no cluster API access — disable default token automount.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-runner
+  namespace: {{ .Release.Namespace }}
+automountServiceAccountToken: false

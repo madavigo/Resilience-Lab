@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gitea-runner
+description: Gitea act runner with Docker-in-Docker for linux/amd64 image builds
+type: application
+version: 0.1.0
+appVersion: "0.2.11"
