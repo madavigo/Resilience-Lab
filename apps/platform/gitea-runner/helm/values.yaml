@@ -19,12 +19,18 @@ runner:
   capacity: 2
 
 dind:
-  image: docker:27-dind
+  image: docker:27.5.1-dind
   # DinD requires privileged to manage its own namespaces/cgroups.
   # This is intentional for a build runner; the pod runs in its own namespace.
   privileged: true
   storageClass: truenas-nfs
   storageSize: 20Gi
+
+runnerData:
+  # Persists the .runner registration state so the runner does not re-register
+  # on every pod restart (which would accumulate stale entries in Gitea).
+  storageClass: truenas-nfs
+  storageSize: 1Gi
 
 imagePullSecrets:
   - name: gitea-registry

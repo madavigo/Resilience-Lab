@@ -1,0 +1,47 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gitea-runner-egress
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: gitea-runner
+  policyTypes:
+    - Ingress
+    - Egress
+  # No inbound traffic needed — the runner polls Gitea, not the other way around.
+  ingress: []
+  egress:
+    # Cluster DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+    # Gitea on TrueNAS (10.10.67.1) — runner registration and job polling
+    - to:
+        - ipBlock:
+            cidr: 10.10.67.1/32
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 3000
+          protocol: TCP
+
+    # External registries and action runners (Docker Hub, ghcr.io, etc.)
+    # Excludes cluster-internal CIDRs so the runner cannot reach the K8s API,
+    # Vault, or other internal services.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.244.0.0/16   # pod CIDR
+              - 10.96.0.0/12    # service CIDR
+              - 10.10.67.0/24   # node/TrueNAS network (Gitea allowed above via /32)
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
