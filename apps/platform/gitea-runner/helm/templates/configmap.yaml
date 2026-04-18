@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-runner-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    log:
+      level: info
+    runner:
+      file: .runner
+      capacity: {{ .Values.runner.capacity }}
+      envs:
+        DOCKER_HOST: tcp://localhost:2376
+        DOCKER_TLS_VERIFY: "1"
+        DOCKER_CERT_PATH: /certs/client
+      # Labels override: also set via env var GITEA_RUNNER_LABELS below
+    cache:
+      enabled: true
+      dir: /data/cache
+    container:
+      network: bridge
+      privileged: false
+      # Force all jobs to run linux/amd64 — matches cluster node arch.
+      options: "--platform linux/amd64"
