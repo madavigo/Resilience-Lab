@@ -41,6 +41,7 @@ spec:
               # stale runner entries in Gitea on every pod restart.
               if [ ! -f /data/.runner ]; then
                 act_runner register \
+                  --config   /config/config.yaml \
                   --instance "$GITEA_INSTANCE_URL" \
                   --token    "$GITEA_RUNNER_REGISTRATION_TOKEN" \
                   --name     "resilience-lab-runner" \
