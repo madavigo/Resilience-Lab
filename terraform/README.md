@@ -171,6 +171,8 @@ terraform apply
 
 OPNsense HAProxy objects and DNS entries may already exist in the UI. Import them before `apply` to avoid duplicates:
 
+> **State lock:** Always run `terraform import` from a single terminal session. The MinIO S3 backend acquires a state lock for every write. If a previous run was interrupted and the lock was not released, use `terraform force-unlock <LOCK_ID>` — but only after confirming no other `apply` or `import` is in progress. The lock ID is printed when the lock is acquired and is also visible in the MinIO bucket as a `.tflock` object.
+
 ```bash
 # HAProxy server, backend, and map entry for each service:
 terraform import module.haproxy_<name>.opnsense_haproxy_server.this <server-uuid>

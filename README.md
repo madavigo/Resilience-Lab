@@ -138,6 +138,8 @@ apps/infrastructure/    rook-ceph, democratic-csi, vault, external-secrets,
 apps/observability/     kube-prometheus-stack, loki, alloy
 apps/security/          teleport, authentik
 apps/private/           toothy ArgoCD Application (sources from madavigo/toothy chart)
+                        (included in GitHub mirror — contains only the ArgoCD Application
+                        manifest, which references the toothy Helm chart; no secrets)
 terraform/              IaC for OPNsense · Cloudflare · Vultr · Vault — see terraform/README.md
 docs/                   vault-init-runbook, recovery-runbook, toothy
 ```
