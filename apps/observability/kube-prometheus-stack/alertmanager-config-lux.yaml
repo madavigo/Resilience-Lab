@@ -38,7 +38,7 @@ spec:
   receivers:
     - name: lux
       webhookConfigs:
-        - url: https://lux.madavigo.com/webhooks/alertmanager
+        - url: http://lux.lux.svc.cluster.local/webhooks/alertmanager
           sendResolved: true
           httpConfig:
             authorization:
