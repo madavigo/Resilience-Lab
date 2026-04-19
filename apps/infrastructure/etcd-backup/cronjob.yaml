@@ -161,7 +161,11 @@ spec:
                 - |
                   set -e
                   TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-                  SNAPSHOT="/tmp/etcd-snapshot-${TIMESTAMP}.db"
+                  mkdir -p /backup/etcd
+                  SNAPSHOT="/backup/etcd/etcd-snapshot-${TIMESTAMP}.db"
+
+                  echo "==> Pruning snapshots older than 7 days..."
+                  find /backup/etcd -name "etcd-snapshot-*.db" -mtime +7 -delete 2>/dev/null || true
 
                   echo "==> Taking etcd snapshot..."
                   /shared/talosctl --talosconfig /talosconfig/talosconfig \
@@ -171,13 +175,6 @@ spec:
 
                   SNAPSHOT_SIZE=$(stat -c%s "${SNAPSHOT}")
                   echo "==> Snapshot size: ${SNAPSHOT_SIZE} bytes"
-
-                  echo "==> Copying to NFS..."
-                  mkdir -p /backup/etcd
-                  cp "${SNAPSHOT}" "/backup/etcd/$(basename ${SNAPSHOT})"
-
-                  echo "==> Pruning snapshots older than 7 days..."
-                  find /backup/etcd -name "etcd-snapshot-*.db" -mtime +7 -delete 2>/dev/null || true
 
                   echo "==> Current snapshots on NFS:"
                   ls -lh /backup/etcd/
@@ -201,7 +198,6 @@ spec:
                   #     truenas/etcd-backups/
                   # fi
 
-                  rm -f "${SNAPSHOT}"
                   echo "==> Done. Snapshot: etcd-snapshot-${TIMESTAMP}.db"
               # ┌──────────────────────────────────────────────────────┐
               # │ Phase 2: Uncomment for MinIO env vars                │
@@ -235,4 +231,4 @@ spec:
                   cpu: "100m"
                   memory: "128Mi"
                 limits:
-                  memory: "256Mi"
+                  memory: "512Mi"
