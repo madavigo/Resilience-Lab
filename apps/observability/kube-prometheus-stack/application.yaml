@@ -142,7 +142,60 @@ spec:
         # --- Alertmanager ---
         alertmanager:
           enabled: true
+          config:
+            global:
+              resolve_timeout: 5m
+            route:
+              receiver: "null"
+              group_by: [alertname, namespace, severity]
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 12h
+              routes:
+                # Silence the Watchdog heartbeat alert first — must precede the lux route
+                # so Watchdog is never forwarded to Lux even if it gains a severity label.
+                - receiver: "null"
+                  matchers:
+                    - name: alertname
+                      matchType: =
+                      value: "Watchdog"
+                # Route all warning/critical alerts from any namespace to Lux.
+                # continue: true allows future sibling routes (e.g. PagerDuty) to also match.
+                # repeat_interval: 4h is intentionally shorter than root 12h; Lux handles
+                # re-alert dedup via its fire-count tracking and suppression list.
+                - receiver: lux
+                  matchers:
+                    - name: severity
+                      matchType: =~
+                      value: "warning|critical"
+                  group_wait: 30s
+                  group_interval: 5m
+                  repeat_interval: 4h  # shorter than root 12h; Lux deduplicates via fire-count
+                  continue: true
+            receivers:
+              - name: "null"
+              - name: lux
+                webhook_configs:
+                  - url: "http://lux.lux.svc.cluster.local/webhooks/alertmanager"
+                    send_resolved: true
+                    http_config:
+                      authorization:
+                        type: Bearer
+                        credentials_file: /etc/alertmanager/secrets/lux-webhook-token/token
+            inhibit_rules:
+              - source_matchers:
+                  - severity="critical"
+                target_matchers:
+                  - severity=~"warning|info"
+                equal: [namespace, alertname]
+              - source_matchers:
+                  - severity="warning"
+                target_matchers:
+                  - severity="info"
+                equal: [namespace, alertname]
           alertmanagerSpec:
+            secrets:
+              - lux-webhook-token
             storage:
               volumeClaimTemplate:
                 spec:
