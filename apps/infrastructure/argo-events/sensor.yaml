@@ -1,3 +1,74 @@
+# Sensor -- watches EventBus for Gitea issue-opened events and sends ntfy notification
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: gitea-issue-notify
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: argo-events-sensor
+  dependencies:
+    - name: gitea-issue-webhook
+      eventSourceName: emby-rifftrax
+      eventName: gitea-issues
+      filters:
+        data:
+          - path: body.action
+            type: string
+            value:
+              - "opened"
+  triggers:
+    - template:
+        name: notify-ntfy
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: gitea-issue-notify-
+                namespace: argo-events
+              spec:
+                workflowTemplateRef:
+                  name: gitea-issue-notify
+                arguments:
+                  parameters:
+                    - name: issue-title
+                      value: placeholder
+                    - name: issue-number
+                      value: placeholder
+                    - name: issue-url
+                      value: placeholder
+                    - name: issue-body
+                      value: placeholder
+                    - name: issue-user
+                      value: placeholder
+          parameters:
+            - src:
+                dependencyName: gitea-issue-webhook
+                dataKey: body.issue.title
+              dest: spec.arguments.parameters.0.value
+            - src:
+                dependencyName: gitea-issue-webhook
+                dataKey: body.issue.number
+              dest: spec.arguments.parameters.1.value
+            - src:
+                dependencyName: gitea-issue-webhook
+                dataKey: body.issue.html_url
+              dest: spec.arguments.parameters.2.value
+            - src:
+                dependencyName: gitea-issue-webhook
+                dataKey: body.issue.body
+              dest: spec.arguments.parameters.3.value
+            - src:
+                dependencyName: gitea-issue-webhook
+                dataKey: body.issue.user.login
+              dest: spec.arguments.parameters.4.value
+      retryStrategy:
+        steps: 3
+        duration: 10s
+---
 # Sensor -- watches EventBus for emby-rifftrax events and submits workflow
 apiVersion: argoproj.io/v1alpha1
 kind: Sensor

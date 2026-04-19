@@ -1,3 +1,61 @@
+# WorkflowTemplate -- sends ntfy push notification when a Gitea issue is opened
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: gitea-issue-notify
+  namespace: argo-events
+spec:
+  entrypoint: notify
+  arguments:
+    parameters:
+      - name: issue-title
+      - name: issue-number
+      - name: issue-url
+      - name: issue-body
+      - name: issue-user
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+    secondsAfterFailure: 86400
+  serviceAccountName: argo-events-sensor
+  templates:
+    - name: notify
+      inputs:
+        parameters:
+          - name: issue-title
+          - name: issue-number
+          - name: issue-url
+          - name: issue-body
+          - name: issue-user
+      container:
+        image: alpine:3.20
+        command:
+          - sh
+          - -c
+          - |
+            apk add --no-cache -q curl
+            curl -s \
+              -H "Title: [Resilience-Lab] #{{inputs.parameters.issue-number}}: {{inputs.parameters.issue-title}}" \
+              -H "Priority: default" \
+              -H "Tags: rotating_light" \
+              -H "Click: {{inputs.parameters.issue-url}}" \
+              -d "Opened by {{inputs.parameters.issue-user}}
+
+{{inputs.parameters.issue-body}}" \
+              "https://ntfy.sh/${NTFY_TOPIC}"
+        env:
+          - name: NTFY_TOPIC
+            valueFrom:
+              secretKeyRef:
+                name: ntfy-topic
+                key: topic
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+---
 # WorkflowTemplate -- runs riff-poster-sync against Emby RiffTrax library
 # Triggered by the Sensor when Emby fires a new-item webhook
 apiVersion: argoproj.io/v1alpha1
