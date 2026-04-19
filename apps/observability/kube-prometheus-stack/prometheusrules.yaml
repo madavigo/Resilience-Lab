@@ -1,0 +1,161 @@
+# Custom PrometheusRules for Resilience-Lab
+# Supplements the default kube-prometheus-stack ruleset with
+# app-specific and infrastructure-specific alerting.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: resilience-lab-media
+  namespace: observability
+  labels:
+    release: kube-prometheus
+spec:
+  groups:
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Media namespace — PVC capacity
+    #
+    # The default KubePersistentVolumeFillingUp [warning] only fires when
+    # predict_linear() forecasts exhaustion within 4 days. That is unreliable
+    # on large slowly-growing volumes (10Ti media shares). These rules fire on
+    # a simple percentage threshold regardless of growth rate.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: media.pvc
+      rules:
+
+        # > 85% full — warning, sustained 15 min
+        - alert: MediaPVCFillingUp
+          expr: |
+            (
+              1 - (
+                kubelet_volume_stats_available_bytes{namespace="media"}
+                /
+                kubelet_volume_stats_capacity_bytes{namespace="media"}
+              )
+            ) > 0.85
+          for: 15m
+          labels:
+            severity: warning
+            namespace: media
+          annotations:
+            summary: "Media PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+            description: >
+              PVC {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }}
+              is {{ $value | humanizePercentage }} full.
+              Consider expanding the volume or clearing old data.
+            runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup"
+
+        # > 95% full — critical, sustained 5 min
+        - alert: MediaPVCCritical
+          expr: |
+            (
+              1 - (
+                kubelet_volume_stats_available_bytes{namespace="media"}
+                /
+                kubelet_volume_stats_capacity_bytes{namespace="media"}
+              )
+            ) > 0.95
+          for: 5m
+          labels:
+            severity: critical
+            namespace: media
+          annotations:
+            summary: "Media PVC {{ $labels.persistentvolumeclaim }} is critically full ({{ $value | humanizePercentage }})"
+            description: >
+              PVC {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }}
+              is {{ $value | humanizePercentage }} full. Writes may fail imminently.
+            runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup"
+
+        # Config PVCs (≤ 10Gi) warn earlier at 70% — they are small and
+        # harder to expand quickly (Ceph block, RWO).
+        - alert: MediaConfigPVCFillingUp
+          expr: |
+            (
+              1 - (
+                kubelet_volume_stats_available_bytes{namespace="media"}
+                /
+                kubelet_volume_stats_capacity_bytes{namespace="media"}
+              )
+            ) > 0.70
+            and
+            kubelet_volume_stats_capacity_bytes{namespace="media"} <= (10 * 1024 * 1024 * 1024)
+          for: 15m
+          labels:
+            severity: warning
+            namespace: media
+          annotations:
+            summary: "Media config PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+            description: >
+              Small config PVC {{ $labels.persistentvolumeclaim }} (≤ 10Gi) in namespace
+              {{ $labels.namespace }} is {{ $value | humanizePercentage }} full.
+              These are RWO Ceph block volumes — resize before the app runs out of space.
+            runbook_url: "https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubepersistentvolumefillingup"
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Media namespace — application health
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: media.apps
+      rules:
+
+        # Any media app pod stuck not-ready for > 15 min
+        - alert: MediaAppNotReady
+          expr: |
+            kube_pod_status_ready{namespace="media", condition="true"} == 0
+          for: 15m
+          labels:
+            severity: warning
+            namespace: media
+          annotations:
+            summary: "Media app pod {{ $labels.pod }} is not ready"
+            description: >
+              Pod {{ $labels.pod }} in namespace media has been not-ready for
+              more than 15 minutes. Check for image pull errors, OOMKill, or
+              missing PVC mounts.
+
+        # Any media app in CrashLoopBackOff
+        - alert: MediaAppCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace="media"}[15m]) * 60 * 15 > 3
+          for: 5m
+          labels:
+            severity: warning
+            namespace: media
+          annotations:
+            summary: "Media app {{ $labels.container }} is crash-looping"
+            description: >
+              Container {{ $labels.container }} in pod {{ $labels.pod }} (namespace media)
+              has restarted more than 3 times in the last 15 minutes.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # etcd backup — job health
+    # The default KubeJobFailed fires but with a generic message. This adds
+    # a targeted alert with context specific to the backup job.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: etcd-backup
+      rules:
+
+        - alert: EtcdSnapshotFailed
+          expr: |
+            kube_job_failed{namespace="etcd-backup", job_name=~"etcd-snapshot-.*"} > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "etcd snapshot job {{ $labels.job_name }} failed"
+            description: >
+              The etcd backup job {{ $labels.job_name }} has failed.
+              The cluster has been without a verified etcd snapshot since the
+              last successful run. Check pod logs in namespace etcd-backup.
+
+        - alert: EtcdSnapshotMissing
+          expr: |
+            (time() - max(kube_job_status_completion_time{namespace="etcd-backup", job_name=~"etcd-snapshot-.*"})) > (6 * 3600 + 1800)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "No successful etcd snapshot in the last 6.5 hours"
+            description: >
+              The most recent successful etcd snapshot completed more than 6.5
+              hours ago (schedule is every 4 hours). At least one job may have
+              been skipped or is stuck. Check the etcd-backup namespace.
