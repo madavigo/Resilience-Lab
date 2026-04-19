@@ -156,18 +156,14 @@ spec:
                 # so Watchdog is never forwarded to Lux even if it gains a severity label.
                 - receiver: "null"
                   matchers:
-                    - name: alertname
-                      matchType: =
-                      value: "Watchdog"
+                    - alertname = "Watchdog"
                 # Route all warning/critical alerts from any namespace to Lux.
                 # continue: true allows future sibling routes (e.g. PagerDuty) to also match.
                 # repeat_interval: 4h is intentionally shorter than root 12h; Lux handles
                 # re-alert dedup via its fire-count tracking and suppression list.
                 - receiver: lux
                   matchers:
-                    - name: severity
-                      matchType: =~
-                      value: "warning|critical"
+                    - severity =~ "warning|critical"
                   group_wait: 30s
                   group_interval: 5m
                   repeat_interval: 4h  # shorter than root 12h; Lux deduplicates via fire-count
