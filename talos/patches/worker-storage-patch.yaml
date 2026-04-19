@@ -40,3 +40,8 @@ machine:
       partitions: []                 # Explicitly empty — hands off to Rook-Ceph
 
   # lm-sensors: baked into the installer image schematic, not a machine config field
+
+cluster:
+  proxy:
+    extraArgs:
+      metrics-bind-address: "0.0.0.0:10249"
