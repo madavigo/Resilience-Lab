@@ -20,6 +20,7 @@ data:
             # LAN-only services: resolve inside the cluster to the gateway/LAN IP
             # instead of public Cloudflare records which are unreachable in-cluster.
             10.10.67.1 git.madavigo.com
+            10.10.70.1 teleport.madavigo.com
             fallthrough
         }
 
