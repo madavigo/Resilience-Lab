@@ -12,7 +12,7 @@ spec:
     targetRevision: HEAD
     path: apps/platform/tailscale-operator
     directory:
-      include: "external-secret.yaml"
+      include: "{external-secret.yaml,namespace.yaml}"
   destination:
     server: https://kubernetes.default.svc
     namespace: tailscale
