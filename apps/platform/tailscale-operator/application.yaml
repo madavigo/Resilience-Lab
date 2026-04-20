@@ -41,7 +41,7 @@ spec:
         installCRDs: true
         operatorConfig:
           defaultTags:
-            - "tag:k8s-operator"
+            - "tag:k8s"
   destination:
     server: https://kubernetes.default.svc
     namespace: tailscale
