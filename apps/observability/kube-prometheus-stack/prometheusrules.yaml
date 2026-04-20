@@ -159,3 +159,231 @@ spec:
               The most recent successful etcd snapshot completed more than 6.5
               hours ago (schedule is every 4 hours). At least one job may have
               been skipped or is stuck. Check the etcd-backup namespace.
+---
+# ────────────────────────────────────────────────────────────────────────────
+# Rook-Ceph cluster health
+#
+# Ceph metrics are exposed by rook-ceph-mgr via two scrape jobs:
+#   job="rook-ceph-mgr"  (ServiceMonitor added by rook-ceph chart)
+#   job="ceph-mgr"       (legacy / additional scrape)
+# Where deduplication matters we filter to one job or use max by().
+# ────────────────────────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: resilience-lab-ceph
+  namespace: observability
+  labels:
+    release: kube-prometheus
+spec:
+  groups:
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Ceph overall health
+    #
+    # ceph_health_status: 0=OK, 1=WARN, 2=ERR
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: ceph.health
+      rules:
+
+        - alert: CephHealthWarning
+          expr: |
+            max by (job) (ceph_health_status{job="rook-ceph-mgr"}) == 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph cluster is in HEALTH_WARN state"
+            description: >
+              The Ceph cluster has been reporting HEALTH_WARN for more than 5 minutes.
+              Check `ceph status` on the rook-ceph toolbox pod for details.
+
+        - alert: CephHealthError
+          expr: |
+            max by (job) (ceph_health_status{job="rook-ceph-mgr"}) == 2
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph cluster is in HEALTH_ERR state"
+            description: >
+              The Ceph cluster has been reporting HEALTH_ERR for more than 2 minutes.
+              Data availability may be impacted. Check the rook-ceph toolbox immediately.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # OSD health
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: ceph.osd
+      rules:
+
+        # An OSD that is down is unable to serve data.
+        - alert: CephOSDDown
+          expr: |
+            ceph_osd_up{job="rook-ceph-mgr"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph OSD {{ $labels.ceph_daemon }} is down"
+            description: >
+              OSD {{ $labels.ceph_daemon }} has been down for more than 5 minutes.
+              If it stays down Ceph will begin backfilling data to the remaining OSDs.
+
+        # An OSD marked out of the CRUSH map stops receiving new data.
+        - alert: CephOSDOut
+          expr: |
+            ceph_osd_in{job="rook-ceph-mgr"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph OSD {{ $labels.ceph_daemon }} is marked out"
+            description: >
+              OSD {{ $labels.ceph_daemon }} is marked out of the CRUSH map.
+              Data is being redistributed away from it. Check disk health in the rook-ceph namespace.
+
+        # OSD fill level — warn at 75%, critical at 85%.
+        # Uses ceph_osd_stat_bytes_used / ceph_osd_stat_bytes (per-OSD totals).
+        - alert: CephOSDNearFull
+          expr: |
+            (
+              max by (ceph_daemon) (ceph_osd_stat_bytes_used{job="rook-ceph-mgr"})
+              /
+              max by (ceph_daemon) (ceph_osd_stat_bytes{job="rook-ceph-mgr"})
+            ) > 0.75
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph OSD {{ $labels.ceph_daemon }} is {{ $value | humanizePercentage }} full"
+            description: >
+              OSD {{ $labels.ceph_daemon }} is {{ $value | humanizePercentage }} full.
+              Ceph begins throttling writes when any OSD hits 85%. Add capacity or
+              rebalance data before that threshold is reached.
+
+        - alert: CephOSDFull
+          expr: |
+            (
+              max by (ceph_daemon) (ceph_osd_stat_bytes_used{job="rook-ceph-mgr"})
+              /
+              max by (ceph_daemon) (ceph_osd_stat_bytes{job="rook-ceph-mgr"})
+            ) > 0.85
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph OSD {{ $labels.ceph_daemon }} is critically full ({{ $value | humanizePercentage }})"
+            description: >
+              OSD {{ $labels.ceph_daemon }} has exceeded 85% capacity. Ceph will
+              mark it full and refuse writes. Immediate action required.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # MON quorum
+    #
+    # The cluster has 3 MONs. Quorum requires ≥ 2. If quorum is lost the
+    # cluster becomes read-only.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: ceph.mon
+      rules:
+
+        - alert: CephMonQuorumAtRisk
+          expr: |
+            count by (job) (ceph_mon_quorum_status{job="rook-ceph-mgr"} == 1) < 2
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph MON quorum is at risk (fewer than 2 MONs in quorum)"
+            description: >
+              Fewer than 2 Ceph monitors are currently in quorum. With a 3-MON
+              cluster this means quorum may already be lost. The cluster will
+              become read-only without quorum. Check MON pods in the rook-ceph namespace.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Placement Group (PG) health
+    #
+    # Degraded PGs mean replicas are missing (data still accessible but not
+    # fully protected). Inactive PGs mean IO is blocked.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: ceph.pg
+      rules:
+
+        - alert: CephPGsDegraded
+          expr: |
+            max by (job) (ceph_pg_degraded{job="rook-ceph-mgr"}) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $value }} Ceph placement groups are degraded"
+            description: >
+              {{ $value }} placement groups have been in degraded state for more than
+              10 minutes. Data is still accessible but is not fully replicated.
+              Monitor until backfill completes; investigate if count is rising.
+
+        - alert: CephPGsNotActive
+          expr: |
+            (
+              max by (job) (ceph_pg_total{job="rook-ceph-mgr"})
+              -
+              max by (job) (ceph_pg_active{job="rook-ceph-mgr"})
+            ) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $value }} Ceph placement groups are not active"
+            description: >
+              {{ $value }} placement groups are not in active state. IO to affected
+              data may be blocked. Check `ceph pg stat` in the rook-ceph toolbox.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Cluster-wide capacity
+    #
+    # Pools expose max_avail (available headroom) and stored (used).
+    # We aggregate across all pools for a cluster-level view.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: ceph.capacity
+      rules:
+
+        # Warn at 70% total cluster fill (used / (used + max_avail))
+        - alert: CephClusterNearFull
+          expr: |
+            (
+              sum(max by (pool_id) (ceph_pool_stored{job="rook-ceph-mgr"}))
+              /
+              (
+                sum(max by (pool_id) (ceph_pool_stored{job="rook-ceph-mgr"}))
+                +
+                sum(max by (pool_id) (ceph_pool_max_avail{job="rook-ceph-mgr"}))
+              )
+            ) > 0.70
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ceph cluster is {{ $value | humanizePercentage }} full"
+            description: >
+              Total Ceph cluster utilisation has exceeded 70% for 15 minutes.
+              Plan capacity expansion — Ceph becomes unstable above 85%.
+
+        # Critical at 80% — leaves headroom before the 85% OSD full threshold
+        - alert: CephClusterCriticallyFull
+          expr: |
+            (
+              sum(max by (pool_id) (ceph_pool_stored{job="rook-ceph-mgr"}))
+              /
+              (
+                sum(max by (pool_id) (ceph_pool_stored{job="rook-ceph-mgr"}))
+                +
+                sum(max by (pool_id) (ceph_pool_max_avail{job="rook-ceph-mgr"}))
+              )
+            ) > 0.80
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Ceph cluster is critically full ({{ $value | humanizePercentage }})"
+            description: >
+              Total Ceph cluster utilisation has exceeded 80%. At 85% Ceph OSDs
+              will be marked full and writes will be refused. Add capacity immediately.
