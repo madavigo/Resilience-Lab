@@ -87,12 +87,29 @@ spec:
                 echo "Vault already unsealed."
               fi
 
+          # Append telemetry stanza to vault server HCL config so Prometheus
+          # can scrape /v1/sys/metrics without a token.
+          extraConfig: |
+            telemetry {
+              prometheus_retention_time        = "30s"
+              disable_hostname                 = true
+              unauthenticated_metrics_access   = true
+            }
+
         ui:
           enabled: true
 
         injector:
           # Using External Secrets Operator instead of Vault Agent Injector
           enabled: false
+
+        # Expose Prometheus metrics via /v1/sys/metrics
+        # unauthenticated_metrics_access lets Prometheus scrape without a token
+        serverTelemetry:
+          serviceMonitor:
+            enabled: true
+            selectors:
+              release: kube-prometheus
   destination:
     server: https://kubernetes.default.svc
     namespace: vault

@@ -21,6 +21,8 @@ spec:
             enabled: true
             serviceMonitor:
               enabled: true
+              additionalLabels:
+                release: kube-prometheus
   destination:
     server: https://kubernetes.default.svc
     namespace: ingress-nginx

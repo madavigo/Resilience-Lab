@@ -387,3 +387,271 @@ spec:
             description: >
               Total Ceph cluster utilisation has exceeded 80%. At 85% Ceph OSDs
               will be marked full and writes will be refused. Add capacity immediately.
+---
+# ────────────────────────────────────────────────────────────────────────────
+# Platform infrastructure — Tier 1 & Tier 2 alerts
+#
+# NOTE: Several metrics here (cert-manager, ArgoCD, Vault, ingress-nginx,
+# external-secrets) depend on ServiceMonitor label fixes committed alongside
+# this file. They will be "no data" until ArgoCD syncs those apps and
+# Prometheus picks up the new scrape targets.
+# ────────────────────────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: resilience-lab-platform
+  namespace: observability
+  labels:
+    release: kube-prometheus
+spec:
+  groups:
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # TLS certificates — cert-manager managed certs
+    #
+    # certmanager_certificate_expiration_timestamp_seconds holds the Unix
+    # expiry time for each Certificate object. We subtract time() to get
+    # seconds remaining and alert on short windows.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: cert-manager
+      rules:
+
+        - alert: CertificateExpiringSoon
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) < (30 * 24 * 3600)
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.name }} expires in {{ $value | humanizeDuration }}"
+            description: >
+              Certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
+              (issuer: {{ $labels.issuer_name }}) expires in
+              {{ $value | humanizeDuration }}.
+              cert-manager should be auto-renewing this — check Certificate
+              and CertificateRequest status in that namespace.
+
+        - alert: CertificateExpiringCritical
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) < (7 * 24 * 3600)
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Certificate {{ $labels.name }} expires in {{ $value | humanizeDuration }} — CRITICAL"
+            description: >
+              Certificate {{ $labels.name }} in namespace {{ $labels.namespace }}
+              expires in {{ $value | humanizeDuration }}.
+              Renewal has likely failed. Investigate immediately — HTTPS traffic
+              will break when the cert expires.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Velero PVC backups
+    #
+    # velero_backup_last_successful_timestamp is a Unix timestamp of the last
+    # successful backup for each schedule. Daily schedule runs at 02:00 UTC;
+    # alert if nothing succeeded in 26 hours.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: velero
+      rules:
+
+        - alert: VeleroBackupMissing
+          expr: |
+            (time() - velero_backup_last_successful_timestamp{schedule="daily-pvc-backup"}) > (26 * 3600)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No successful Velero backup in the last 26 hours"
+            description: >
+              The daily-pvc-backup schedule last succeeded
+              {{ $value | humanizeDuration }} ago. A full day of PVC changes
+              is unprotected. Check Velero pod logs and BackupStorageLocation
+              status in the velero namespace.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # ArgoCD application sync & health
+    #
+    # argocd_app_info carries sync_status and health_status label values.
+    # OutOfSync for > 15 min likely means a sync is stuck or was blocked.
+    # Degraded health means the app's pods/resources are unhealthy.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: argocd
+      rules:
+
+        - alert: ArgoCDAppOutOfSync
+          expr: |
+            argocd_app_info{sync_status="OutOfSync"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} is OutOfSync"
+            description: >
+              Application {{ $labels.name }} (project: {{ $labels.project }})
+              has been OutOfSync for more than 15 minutes.
+              Check the ArgoCD UI for sync errors or a blocking manual approval.
+
+        - alert: ArgoCDAppDegraded
+          expr: |
+            argocd_app_info{health_status="Degraded"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} health is Degraded"
+            description: >
+              Application {{ $labels.name }} (project: {{ $labels.project }})
+              has been in Degraded health for more than 5 minutes.
+              This usually means pods are crash-looping or PVCs are unbound.
+              Check the ArgoCD UI and the app's namespace.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Vault — seal status
+    #
+    # vault_core_unsealed == 1 when healthy, 0 when sealed.
+    # Single-replica; if sealed, ESO and all secret-dependent apps break.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: vault
+      rules:
+
+        - alert: VaultSealed
+          expr: |
+            vault_core_unsealed == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Vault is sealed"
+            description: >
+              The Vault instance has been sealed for more than 2 minutes.
+              The postStart auto-unseal hook may have failed.
+              All External Secrets refreshes and any app that reads from Vault
+              will fail until it is unsealed. Exec into the vault pod and run
+              `vault operator unseal` with the unseal keys from the
+              vault-unseal-keys secret.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # External Secrets Operator — sync failures
+    #
+    # externalsecret_sync_calls_error_total increments on each failed sync
+    # attempt for an ExternalSecret. Any errors here mean apps may get stale
+    # or missing secrets on their next restart.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: external-secrets
+      rules:
+
+        - alert: ExternalSecretSyncFailed
+          expr: |
+            increase(externalsecret_sync_calls_error_total[10m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ExternalSecret {{ $labels.name }} sync is failing"
+            description: >
+              ExternalSecret {{ $labels.name }} in namespace {{ $labels.namespace }}
+              has had sync errors in the last 10 minutes. The secret may be
+              stale. Common causes: Vault sealed, expired Kubernetes auth token,
+              or a policy change blocking the ESO service account.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Talos node disk — /var and /system/state (xfs volumes only)
+    #
+    # Talos nodes have two real filesystems on each node:
+    #   /var           — container images, kubelet state, logs
+    #   /system/state  — Talos state (machine config, certs)
+    # All other mounts are tmpfs and are excluded.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: node.disk
+      rules:
+
+        - alert: TalosNodeDiskPressure
+          expr: |
+            (
+              node_filesystem_avail_bytes{fstype="xfs"}
+              /
+              node_filesystem_size_bytes{fstype="xfs"}
+            ) < 0.20
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.instance }} {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} free"
+            description: >
+              Filesystem {{ $labels.mountpoint }} on node {{ $labels.instance }}
+              has less than 20% space remaining. On Talos, /var holds container
+              images and kubelet state — if it fills up pods will fail to start.
+              Run `talosctl disks` and check for large logfiles or unused images.
+
+        - alert: TalosNodeDiskCritical
+          expr: |
+            (
+              node_filesystem_avail_bytes{fstype="xfs"}
+              /
+              node_filesystem_size_bytes{fstype="xfs"}
+            ) < 0.10
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.instance }} {{ $labels.mountpoint }} is critically low ({{ $value | humanizePercentage }} free)"
+            description: >
+              Filesystem {{ $labels.mountpoint }} on node {{ $labels.instance }}
+              has less than 10% space remaining. Pod scheduling failures are
+              imminent. Run `crictl images` to find large images, or check
+              /var/log for runaway log files.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Ingress-nginx — HTTP 5xx error rate
+    #
+    # nginx_ingress_controller_requests is labeled by ingress, namespace, and
+    # status. We alert when any ingress sustains > 5% 5xx rate for 5 minutes.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: ingress-nginx
+      rules:
+
+        - alert: IngressHighErrorRate
+          expr: |
+            (
+              sum by (ingress, namespace) (
+                rate(nginx_ingress_controller_requests{status=~"5.."}[5m])
+              )
+              /
+              sum by (ingress, namespace) (
+                rate(nginx_ingress_controller_requests[5m])
+              )
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ingress {{ $labels.namespace }}/{{ $labels.ingress }} 5xx rate is {{ $value | humanizePercentage }}"
+            description: >
+              More than 5% of requests through ingress {{ $labels.ingress }}
+              (namespace {{ $labels.namespace }}) are returning 5xx errors.
+              Check the backing service pods and ingress controller logs.
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Recyclarr — quality profile sync job
+    #
+    # Recyclarr runs as a CronJob in the media namespace daily at 03:00 UTC.
+    # A failure means Sonarr/Radarr quality profiles silently drift from
+    # TRaSH Guides recommendations.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: media.jobs
+      rules:
+
+        - alert: RecyclarrSyncFailed
+          expr: |
+            kube_job_status_failed{namespace="media", job_name=~"recyclarr-.*"} > 0
+          for: 1m
+          labels:
+            severity: warning
+            namespace: media
+          annotations:
+            summary: "Recyclarr sync job {{ $labels.job_name }} failed"
+            description: >
+              The Recyclarr CronJob has failed. Sonarr and Radarr quality
+              profiles will drift from TRaSH Guides until the next successful
+              run. Check pod logs in the media namespace.
