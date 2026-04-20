@@ -55,7 +55,12 @@ spec:
           size: 10Gi
 
         # Kubernetes proxy (Option D) -- all kubectl flows through Teleport
+        # kube_public_addr forces ALPN multiplexing over 443 (Tailscale Funnel only exposes 443)
         kubeClusterName: resilience-lab
+        proxy:
+          teleportConfig:
+            proxy_service:
+              kube_public_addr: "teleport.madavigo.com:443"
 
         # Session recordings to TrueNAS MinIO (S3-compatible)
         # Audit events stored locally (community edition limitation)
