@@ -87,14 +87,35 @@ spec:
                 echo "Vault already unsealed."
               fi
 
-          # Append telemetry stanza to vault server HCL config so Prometheus
-          # can scrape /v1/sys/metrics without a token.
-          extraConfig: |
-            telemetry {
-              prometheus_retention_time        = "30s"
-              disable_hostname                 = true
-              unauthenticated_metrics_access   = true
-            }
+          # configAnnotation adds a pod annotation with a hash of the ConfigMap
+          # so that any config change automatically triggers a StatefulSet rollout.
+          configAnnotation: true
+
+          standalone:
+            # Full server HCL config for standalone (non-HA) mode.
+            # In vault-helm 0.28.1 this lives at server.standalone.config.
+            # Both telemetry stanzas are required: the top-level one enables
+            # Prometheus metrics; the listener one allows unauthenticated scraping.
+            config: |
+              ui = true
+
+              listener "tcp" {
+                tls_disable     = 1
+                address         = "[::]:8200"
+                cluster_address = "[::]:8201"
+                telemetry {
+                  unauthenticated_metrics_access = true
+                }
+              }
+
+              storage "file" {
+                path = "/vault/data"
+              }
+
+              telemetry {
+                prometheus_retention_time = "30s"
+                disable_hostname          = true
+              }
 
         ui:
           enabled: true
