@@ -28,25 +28,38 @@ spec:
           - name: issue-user
       container:
         image: alpine:3.20
+        # All Argo parameter substitutions are in env vars, NOT inline in the
+        # shell script. This prevents backticks, $(...), {}, and other shell
+        # metacharacters in issue bodies from breaking or injecting commands.
         command:
           - sh
           - -c
           - |
             apk add --no-cache -q curl
-            BODY=$(printf "Opened by {{inputs.parameters.issue-user}}\n\n{{inputs.parameters.issue-body}}")
-            curl -s \
-              -H "Title: [Resilience-Lab] #{{inputs.parameters.issue-number}}: {{inputs.parameters.issue-title}}" \
-              -H "Priority: default" \
-              -H "Tags: rotating_light" \
-              -H "Click: {{inputs.parameters.issue-url}}" \
-              -d "$BODY" \
-              "https://ntfy.sh/${NTFY_TOPIC}"
+            printf '%s\n\n%s' "$ISSUE_USER" "$ISSUE_BODY" | \
+              curl -s \
+                -H "Title: [Resilience-Lab] #${ISSUE_NUMBER}: ${ISSUE_TITLE}" \
+                -H "Priority: default" \
+                -H "Tags: rotating_light" \
+                -H "Click: ${ISSUE_URL}" \
+                --data-binary @- \
+                "https://ntfy.sh/${NTFY_TOPIC}"
         env:
           - name: NTFY_TOPIC
             valueFrom:
               secretKeyRef:
                 name: ntfy-topic
                 key: topic
+          - name: ISSUE_TITLE
+            value: "{{inputs.parameters.issue-title}}"
+          - name: ISSUE_NUMBER
+            value: "{{inputs.parameters.issue-number}}"
+          - name: ISSUE_URL
+            value: "{{inputs.parameters.issue-url}}"
+          - name: ISSUE_BODY
+            value: "{{inputs.parameters.issue-body}}"
+          - name: ISSUE_USER
+            value: "{{inputs.parameters.issue-user}}"
         resources:
           requests:
             cpu: 50m
