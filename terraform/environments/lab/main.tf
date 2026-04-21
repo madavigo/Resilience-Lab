@@ -153,7 +153,16 @@ locals {
 }
 
 # ===========================================================================
-# CURRENTLY PUBLIC (music, emby/s, teleport)
+# LEGACY PUBLIC — music, emby/s
+#
+# These predate the Vultr front-proxy. With proxy.madavigo.com now fronting
+# every public A record in Cloudflare, public traffic for music/s is:
+#     internet → Cloudflare → Vultr VPS HAProxy → 10.10.70.0 (ingress-nginx)
+# — it never reaches OPNsense HAProxy. These blocks still manage the OPNsense
+# backends for split-horizon LAN access (and as a fallback if the VPS is down),
+# but they're optional. Safe to remove once Unbound split-DNS is confirmed
+# covering every LAN client.
+#
 # These already exist in OPNsense — import before first apply:
 #   terraform import module.haproxy_<name>.opnsense_haproxy_server.this <server-uuid>
 #   terraform import module.haproxy_<name>.opnsense_haproxy_backend.this <backend-uuid>

@@ -1,6 +1,6 @@
-output "teleport_proxy_ip" {
-  description = "Public IPv4 of the Teleport proxy VPS — add this as the 'teleport' A record in Cloudflare"
-  value       = module.teleport_proxy.public_ipv4
+output "proxy_ip" {
+  description = "Public IPv4 of the front-proxy VPS (HAProxy + WireGuard). All *.madavigo.com Cloudflare A records point here."
+  value       = module.proxy.public_ipv4
 }
 
 output "cloudflare_zone_id" {
