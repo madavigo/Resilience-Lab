@@ -66,10 +66,13 @@ write_files:
         tcp-request content accept if { req_ssl_hello_type 1 }
 
         # Teleport — ALPN-multiplexed: web UI, kubectl, SSH
-        # Also matches Teleport's internal ALPN routing SNI: *.teleport.cluster.local
-        # (tsh encodes the target endpoint as the leading label, e.g.
-        #  "<hex-hostname>.teleport.cluster.local")
-        use_backend bk_teleport if { req.ssl_sni -i teleport.madavigo.com } or { req.ssl_sni -m end -i .teleport.cluster.local }
+        # Matches:
+        #  - teleport.madavigo.com (exact)
+        #  - *.teleport.madavigo.com (ALPN sub-protocols Teleport prefixes to its
+        #    public addr, e.g. "kube-teleport-proxy-alpn.teleport.madavigo.com"
+        #    for kubectl, or "<hex>.teleport.madavigo.com" for web web multiplexing)
+        #  - *.teleport.cluster.local (Teleport's internal inter-component SNI)
+        use_backend bk_teleport if { req.ssl_sni -m end -i teleport.madavigo.com } or { req.ssl_sni -m end -i .teleport.cluster.local }
 
         # Default: ingress-nginx (all other *.madavigo.com services)
         default_backend bk_ingress
