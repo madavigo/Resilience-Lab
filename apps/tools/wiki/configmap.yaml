@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wiki-config
+  namespace: wiki
+data:
+  config.yml: |
+    port: 3000
+    db:
+      type: sqlite
+      storage: /wiki/data/db.sqlite
+    logLevel: info
+    logFormat: default
+    offline: false
+    ha: false
