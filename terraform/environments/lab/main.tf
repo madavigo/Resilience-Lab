@@ -30,46 +30,53 @@ resource "vultr_ssh_key" "lab" {
 }
 
 # ---------------------------------------------------------------------------
-# Vultr — Teleport proxy VPS
+# Vultr — General-purpose front-proxy VPS
 #
-# This is the PUBLIC-FACING proxy tier only. Auth + node tiers run inside
-# the K8s cluster and connect OUTBOUND to this VPS via the reverse tunnel
-# on port 3024. Your home WAN IP never appears in DNS.
+# HAProxy on :443 does TCP/SNI passthrough to internal cluster services.
+# WireGuard tunnels all backend traffic to OPNsense (no WAN IP in DNS).
 #
-# BEFORE terraform apply:
-#   1. Generate a join token from the cluster:
-#        kubectl --kubeconfig ~/.kube/config-resilience-lab \
-#          -n teleport exec deploy/teleport -- \
-#          tctl tokens add --type=proxy --ttl=1h
-#   2. export TF_VAR_teleport_join_token="<token>"
-#   3. terraform apply
+# Routing:
+#   teleport.madavigo.com → 10.10.70.1:443  (Teleport MetalLB)
+#   *.madavigo.com         → 10.10.70.0:443  (ingress-nginx MetalLB)
+#
+# WireGuard peer: resilience-lab-proxy (UUID: 185a41fe-2f3b-46d9-ac7b-955b550537a7)
+# Tunnel address: 10.10.13.3/32 (PhoneHome server, OPNsense WAN 136.60.100.55:61612)
+#
+# BEFORE terraform apply (first provision only):
+#   1. Generate a WireGuard keypair:
+#        wg genkey | tee privkey | wg pubkey > pubkey
+#   2. Add the public key as a peer in OPNsense WireGuard (PhoneHome server)
+#      and assign tunnel IP 10.10.13.3/32
+#   3. export TF_VAR_proxy_wg_private_key="$(cat privkey)"
+#   4. terraform apply
+#
+# The running instance at 216.128.142.127 (provisioned 2026-04-20) can be
+# imported:  terraform import module.proxy.vultr_instance.this <instance-id>
 # ---------------------------------------------------------------------------
-module "teleport_proxy" {
+module "proxy" {
   source = "../../modules/vultr-vps"
 
-  label    = "teleport-proxy"
-  hostname = var.teleport_proxy_hostname
-  region   = "dfw"         # Dallas — domestic US
-  plan     = "vc2-1c-1gb"  # 1 vCPU / 1 GB RAM / 25 GB NVMe (~$6/mo)
-  os_id    = 2076           # Debian 12 x64
+  label    = "proxy"
+  hostname = "proxy.madavigo.com"
+  region   = "ewr"         # New Jersey — east coast
+  plan     = "vc2-1c-2gb"  # 1 vCPU / 2 GB RAM / 55 GB NVMe (~$12/mo)
+  os_id    = 2284           # Ubuntu 24.04 x64
 
   ssh_key_ids = [vultr_ssh_key.lab.id]
 
-  user_data = templatefile("../../modules/vultr-vps/cloud-init/teleport-proxy.yaml.tpl", {
-    teleport_version  = var.teleport_version
-    join_token        = var.teleport_join_token
-    proxy_public_addr = var.teleport_proxy_hostname
-    acme_email        = var.teleport_acme_email
+  user_data = templatefile("../../modules/vultr-vps/cloud-init/proxy.yaml.tpl", {
+    wg_private_key  = var.proxy_wg_private_key
+    wg_address      = "10.10.13.3/24"
+    opnsense_wan_ip = "136.60.100.55"
   })
 
-  # Inbound only — no port 22, access via Teleport node session
   firewall_rules = [
-    { protocol = "tcp", port = "443",  source_cidr = "0.0.0.0/0" }, # Teleport web + client TLS
-    { protocol = "tcp", port = "3022", source_cidr = "0.0.0.0/0" }, # Teleport SSH proxy
-    { protocol = "tcp", port = "3024", source_cidr = "0.0.0.0/0" }, # Reverse tunnel (cluster → proxy)
+    { protocol = "tcp", port = "22",  source_cidr = "0.0.0.0/0" }, # SSH
+    { protocol = "tcp", port = "443", source_cidr = "0.0.0.0/0" }, # HAProxy TLS passthrough
+    { protocol = "tcp", port = "80",  source_cidr = "0.0.0.0/0" }, # HTTP
   ]
 
-  tags = ["lab", "teleport", "proxy"]
+  tags = ["lab", "proxy", "haproxy"]
 }
 
 # ---------------------------------------------------------------------------
@@ -84,12 +91,14 @@ module "cloudflare_zone" {
   # LAN-only services have no Cloudflare record — internal resolution is
   # handled by OPNsense Unbound (see module "opnsense_dns" below).
   records = [
-    # Cloudflare proxied → OPNsense HAProxy (LOCAL_NOOFFLOAD map) → MetalLB → ingress-nginx
-    { name = "music", type = "A", value = "10.10.70.0", proxied = true, comment = "Navidrome" },
-    # Cloudflare proxied → OPNsense HAProxy (PUBLIC map) → TrueNAS:9096
-    { name = "s",     type = "A", value = "10.10.70.0", proxied = true, comment = "Emby" },
-    # Not proxied — Teleport manages its own ACME/TLS, needs direct TCP to Vultr VPS
-    { name = "teleport", type = "A", value = module.teleport_proxy.public_ipv4, proxied = false, comment = "Teleport proxy (Vultr DFW) — WAN IP never in DNS" },
+    # Front-proxy (HAProxy + WireGuard) — all public TLS goes here
+    # SNI passthrough routes each hostname to the correct internal backend
+    { name = "proxy",    type = "A", value = module.proxy.public_ipv4, proxied = false, comment = "General-purpose front-proxy (HAProxy + WireGuard)" },
+    { name = "teleport", type = "A", value = module.proxy.public_ipv4, proxied = false, comment = "Teleport — via proxy SNI passthrough, WAN IP never in DNS" },
+
+    # Public services via proxy SNI passthrough (not proxied by Cloudflare — HAProxy handles TLS)
+    { name = "music", type = "A", value = module.proxy.public_ipv4, proxied = false, comment = "Navidrome — via proxy → ingress-nginx" },
+    { name = "s",     type = "A", value = module.proxy.public_ipv4, proxied = false, comment = "Emby — via proxy → ingress-nginx" },
   ]
 }
 

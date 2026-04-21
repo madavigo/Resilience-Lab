@@ -46,8 +46,9 @@ variable "tags" {
 }
 
 variable "acme_email" {
-  description = "Email address for Let's Encrypt ACME registration (used in Teleport cloud-init)"
+  description = "Email address for Let's Encrypt ACME registration (used in cloud-init templates that need it)"
   type        = string
+  default     = ""
 }
 
 variable "firewall_rules" {

@@ -32,9 +32,9 @@ variable "kubernetes_ca_cert" {
 # OPNsense
 # ---------------------------------------------------------------------------
 variable "opnsense_url" {
-  description = "Base URL of the OPNsense firewall API"
+  description = "Base URL of the OPNsense firewall API (port 8443 — admin UI is not on 443)"
   type        = string
-  default     = "https://badhombre.madavigo.com"
+  default     = "https://badhombre.madavigo.com:8443"
 }
 
 variable "opnsense_api_key" {
@@ -87,35 +87,16 @@ variable "vultr_ssh_public_key" {
 }
 
 # ---------------------------------------------------------------------------
-# Teleport proxy VPS
+# General-purpose front-proxy VPS (HAProxy + WireGuard)
 # ---------------------------------------------------------------------------
-variable "teleport_join_token" {
+variable "proxy_wg_private_key" {
   description = <<-EOT
-    One-time Teleport join token for the proxy to authenticate against the
-    cluster auth service. Generate before terraform apply:
-      kubectl --kubeconfig ~/.kube/config-resilience-lab \
-        -n teleport exec deploy/teleport -- \
-        tctl tokens add --type=proxy --ttl=1h
-    Pass via TF_VAR_teleport_join_token — consumed on first boot, never reused.
+    WireGuard private key for the proxy node.
+    Generate: wg genkey | tee privkey | wg pubkey > pubkey
+    Then add the public key as a peer in OPNsense WireGuard (PhoneHome server).
+    Pass via TF_VAR_proxy_wg_private_key — never commit.
   EOT
   type      = string
   sensitive = true
-}
-
-variable "teleport_acme_email" {
-  description = "Email address for Let's Encrypt ACME registration on the Teleport proxy VPS"
-  type        = string
-  default     = "mgolden@een.com"
-}
-
-variable "teleport_version" {
-  description = "Teleport major version to install (install.sh resolves latest patch)"
-  type        = string
-  default     = "16"
-}
-
-variable "teleport_proxy_hostname" {
-  description = "Public FQDN for the Teleport proxy tier"
-  type        = string
-  default     = "teleport.madavigo.com"
+  default   = ""
 }

@@ -10,12 +10,8 @@
 
 vault_address   = "https://vault.madavigo.com"
 kubernetes_host = "https://10.10.67.48:6443"
-opnsense_url    = "https://badhombre.madavigo.com"
-
-# Teleport proxy VPS
-teleport_version        = "16"
-teleport_proxy_hostname = "teleport.madavigo.com"
-teleport_acme_email     = "mgolden@een.com"
+# OPNsense admin UI is on port 8443 (HAProxy owns :443 for public services)
+opnsense_url    = "https://badhombre.madavigo.com:8443"
 
 # Map file UUIDs (retrieved from OPNsense API 2026-04-15)
 haproxy_public_map_uuid          = "c4b0441d-c005-42d6-80c8-4fadc607a5de"
