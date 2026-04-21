@@ -54,13 +54,17 @@ spec:
           storageClassName: ceph-block
           size: 10Gi
 
-        # Kubernetes proxy (Option D) -- all kubectl flows through Teleport
-        # kube_public_addr forces ALPN multiplexing over 443 (Tailscale Funnel only exposes 443)
+        # All proxy protocols forced through :443 via ALPN multiplexing.
+        # The front-proxy (Vultr VPS + HAProxy SNI passthrough) only exposes 443;
+        # SSH/kube/tunnel all tunnel through TLS on the same port.
         kubeClusterName: resilience-lab
         proxy:
           teleportConfig:
             proxy_service:
-              kube_public_addr: "teleport.madavigo.com:443"
+              public_addr:        "teleport.madavigo.com:443"
+              ssh_public_addr:    "teleport.madavigo.com:443"
+              kube_public_addr:   "teleport.madavigo.com:443"
+              tunnel_public_addr: "teleport.madavigo.com:443"
 
         # Session recordings to TrueNAS MinIO (S3-compatible)
         # Audit events stored locally (community edition limitation)
