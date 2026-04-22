@@ -119,5 +119,9 @@ spec:
           configMap:
             name: gitea-runner-config
         - name: dind-storage
+          {{- if eq (.Values.dind.storage.type | default "emptyDir") "pvc" }}
           persistentVolumeClaim:
             claimName: dind-storage
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

@@ -23,8 +23,16 @@ dind:
   # DinD requires privileged to manage its own namespaces/cgroups.
   # This is intentional for a build runner; the pod runs in its own namespace.
   privileged: true
-  storageClass: truenas-nfs
-  storageSize: 20Gi
+  # /var/lib/docker MUST be node-local. Previously backed by truenas-nfs, which
+  # forced dind to fall back to storage-driver=vfs (overlay2 mount fails on NFS:
+  # "failed to mount overlay: invalid argument"). VFS + NFS then deadlocks on
+  # POST /containers/create (hangs indefinitely, no daemon log output) — this
+  # was the root cause of every job silently stalling after the
+  # "docker create" log line. Using emptyDir lets overlay2 work natively.
+  # Trade-off: image cache is lost on pod restart (~1GB node:20-bullseye
+  # re-pull), which is acceptable for this runner's volume of work.
+  storage:
+    type: emptyDir
 
 runnerData:
   # Persists the .runner registration state so the runner does not re-register
