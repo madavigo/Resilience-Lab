@@ -53,6 +53,15 @@ runner:
 
 dind:
   image: docker:27.5.1-dind
+  # Must equal the pod CNI interface MTU (verify inside the runner pod
+  # with: `ip link show eth0`). Current cluster runs VXLAN overlay with
+  # eth0 MTU 1450. If the CNI is ever changed (eBPF without encap,
+  # different tunnel overhead, etc.), update this to match — otherwise
+  # dockerd sets docker0 to 1500 and any packet > pod-MTU leaving a job
+  # container is silently dropped, causing TLS handshake hangs on any
+  # external host that sends large TLS records (get.helm.sh, ghcr.io,
+  # most CDNs).
+  mtu: 1450
   # DinD requires privileged to manage its own namespaces/cgroups. This is a
   # known trade-off for self-hosted runners. Compensating controls:
   #   - NetworkPolicy (templates/netpol.yaml) blocks egress to the K8s API,

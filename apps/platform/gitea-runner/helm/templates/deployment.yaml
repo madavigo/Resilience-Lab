@@ -98,6 +98,14 @@ spec:
           image: {{ .Values.dind.image }}
           securityContext:
             privileged: {{ .Values.dind.privileged }}
+          # Match dockerd's default MTU to the pod CNI MTU. The pod's eth0 is
+          # {{ .Values.dind.mtu }} bytes (VXLAN overlay overhead), but dockerd
+          # defaults to 1500 — so any packet > pod-MTU leaving a job container
+          # gets silently dropped by the overlay (ICMP "frag needed" is also
+          # dropped). Symptom: TLS handshakes hang mid-way, `curl` reports
+          # "Connection reset by peer" or times out on large responses.
+          args:
+            - "--mtu={{ .Values.dind.mtu }}"
           env:
             - name: DOCKER_TLS_CERTDIR
               value: /certs
