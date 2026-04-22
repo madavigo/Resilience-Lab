@@ -6,7 +6,7 @@ metadata:
 data:
   config.yaml: |
     log:
-      level: debug
+      level: info
     runner:
       file: /data/.runner
       capacity: {{ .Values.runner.capacity }}
@@ -21,5 +21,11 @@ data:
     container:
       network: bridge
       privileged: false
-      # Force all jobs to run linux/amd64 — matches cluster node arch.
-      options: "--platform linux/amd64"
+      # `options: "--platform linux/amd64"` was previously set to pin jobs
+      # to amd64, but act_runner v0.2.11 silently swallows the
+      # container-create call when --platform is combined with a
+      # label-mapped image (ubuntu-latest:docker://node:20-bullseye). The
+      # runner emits "🐳 docker create ... platform= ..." at debug level
+      # and then never issues the HTTP POST to dind — no error, no warn,
+      # no event. All cluster nodes are amd64, so omitting the option
+      # leaves dind to default to its native platform, which is correct.
