@@ -29,7 +29,7 @@ runner:
   # runtime enforces. To upgrade: pull :act-latest, read the new digest via
   #   docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/catthehacker/ubuntu:act-latest
   # and update this line — the change will show up in git diff.
-  labels: "ubuntu-latest:docker://catthehacker/ubuntu:act-latest@sha256:15e550c0501533b336df62cd3c8ba530a77972b62180c3b4240a1222cb2cd1f3,self-hosted:docker://catthehacker/ubuntu:act-latest@sha256:15e550c0501533b336df62cd3c8ba530a77972b62180c3b4240a1222cb2cd1f3"
+  labels: "ubuntu-latest:docker://ghcr.io/catthehacker/ubuntu:act-latest@sha256:15e550c0501533b336df62cd3c8ba530a77972b62180c3b4240a1222cb2cd1f3,self-hosted:docker://ghcr.io/catthehacker/ubuntu:act-latest@sha256:15e550c0501533b336df62cd3c8ba530a77972b62180c3b4240a1222cb2cd1f3"
 
   # Number of concurrent jobs this runner will execute.
   capacity: 2
