@@ -6,7 +6,7 @@ metadata:
 data:
   config.yaml: |
     log:
-      level: debug
+      level: info
     runner:
       file: /data/.runner
       capacity: {{ .Values.runner.capacity }}

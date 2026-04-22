@@ -1,4 +1,10 @@
-{{- if .Values.dind.storageClass }}
+{{- if eq (.Values.dind.storage.type | default "emptyDir") "pvc" }}
+{{- if not .Values.dind.storage.storageClass }}
+{{- fail "dind.storage.storageClass is required when dind.storage.type=pvc" }}
+{{- end }}
+{{- if not .Values.dind.storage.storageSize }}
+{{- fail "dind.storage.storageSize is required when dind.storage.type=pvc" }}
+{{- end }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -7,10 +13,10 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: {{ .Values.dind.storageClass }}
+  storageClassName: {{ .Values.dind.storage.storageClass }}
   resources:
     requests:
-      storage: {{ .Values.dind.storageSize }}
+      storage: {{ .Values.dind.storage.storageSize }}
 {{- end }}
 ---
 # Persists act_runner's .runner registration file so re-registration is skipped

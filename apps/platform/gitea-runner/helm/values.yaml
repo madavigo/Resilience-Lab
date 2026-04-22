@@ -20,11 +20,29 @@ runner:
 
 dind:
   image: docker:27.5.1-dind
-  # DinD requires privileged to manage its own namespaces/cgroups.
-  # This is intentional for a build runner; the pod runs in its own namespace.
+  # DinD requires privileged to manage its own namespaces/cgroups. This is a
+  # known trade-off for self-hosted runners. Compensating controls:
+  #   - NetworkPolicy (templates/netpol.yaml) blocks egress to the K8s API,
+  #     Vault, and all other cluster-internal CIDRs; only Gitea (10.10.67.1)
+  #     and external HTTP(S) for registries/actions are allowed.
+  #   - Gitea Actions runner registration scope limits which repos/orgs can
+  #     dispatch jobs (managed in Gitea Site Admin → Runners).
+  #   - TODO: add dedicated node taint/toleration so the runner does not
+  #     co-schedule with sensitive workloads. Tracked separately.
   privileged: true
-  storageClass: truenas-nfs
-  storageSize: 20Gi
+  # /var/lib/docker MUST be node-local. Previously backed by truenas-nfs, which
+  # forced dind to fall back to storage-driver=vfs (overlay2 mount fails on NFS:
+  # "failed to mount overlay: invalid argument"). VFS + NFS then deadlocks on
+  # POST /containers/create (hangs indefinitely, no daemon log output) — this
+  # was the root cause of every job silently stalling after the
+  # "docker create" log line. Using emptyDir lets overlay2 work natively.
+  # Trade-off: image cache is lost on pod restart (~1GB node:20-bullseye
+  # re-pull), which is acceptable for this runner's volume of work.
+  storage:
+    type: emptyDir            # set to "pvc" to use a PersistentVolumeClaim
+    sizeLimit: 20Gi           # kubelet-enforced cap on emptyDir (du-scanned, ~1m interval)
+    # storageClass: local-path   # required when type=pvc
+    # storageSize: 20Gi          # required when type=pvc
 
 runnerData:
   # Persists the .runner registration state so the runner does not re-register
