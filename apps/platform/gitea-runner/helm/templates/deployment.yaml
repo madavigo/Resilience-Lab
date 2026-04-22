@@ -108,6 +108,14 @@ spec:
               mountPath: /certs
             - name: dind-storage
               mountPath: /var/lib/docker
+            {{- if .Values.runner.ghcrPullAuth.enabled }}
+            # Docker reads $HOME/.docker/config.json for registry credentials.
+            # Mounting the dockerconfigjson secret here authenticates all
+            # `docker pull` calls dind makes during jobs (e.g. ghcr.io images).
+            - name: ghcr-docker-config
+              mountPath: /root/.docker
+              readOnly: true
+            {{- end }}
 
       volumes:
         - name: docker-certs
@@ -126,3 +134,13 @@ spec:
           emptyDir:
             sizeLimit: {{ .Values.dind.storage.sizeLimit | default "20Gi" }}
           {{- end }}
+        {{- if .Values.runner.ghcrPullAuth.enabled }}
+        - name: ghcr-docker-config
+          secret:
+            secretName: gitea-runner-ghcr-pull
+            # dockerconfigjson secrets store data under `.dockerconfigjson`;
+            # docker expects `config.json` at $HOME/.docker/, so rename here.
+            items:
+              - key: .dockerconfigjson
+                path: config.json
+        {{- end }}
