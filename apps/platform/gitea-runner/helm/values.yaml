@@ -34,6 +34,23 @@ runner:
   # Number of concurrent jobs this runner will execute.
   capacity: 2
 
+  # GHCR authentication for dind job-image pulls.
+  #
+  # Job images (catthehacker/ubuntu, etc.) are pulled by the dind sidecar's
+  # docker daemon, NOT by the kubelet — so the top-level imagePullSecrets
+  # below don't apply. Anonymous ghcr.io pulls are rate-limited to 100/6h per
+  # source IP, which a busy CI day will hit. This mounts a dockerconfigjson
+  # at /root/.docker/config.json inside dind so pulls authenticate.
+  #
+  # Prereq before enabling:
+  #   vault kv patch secret/resilience-lab/gitea-runner \
+  #     ghcr-username=<github-service-account> ghcr-token=<PAT-read:packages>
+  #
+  # The PAT should be a classic token with `read:packages` scope on a
+  # service-account GitHub user (not a human), rotated periodically.
+  ghcrPullAuth:
+    enabled: false
+
 dind:
   image: docker:27.5.1-dind
   # DinD requires privileged to manage its own namespaces/cgroups. This is a

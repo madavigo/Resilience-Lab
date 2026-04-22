@@ -1,0 +1,23 @@
+gitea-runner deployed successfully.
+
+{{- if .Values.runner.ghcrPullAuth.enabled }}
+
+GHCR pull auth is ENABLED.
+  Required Vault keys at {{ .Values.vault.secretPath }}:
+    ghcr-username  — GitHub service-account username
+    ghcr-token     — classic PAT with read:packages scope
+
+  Ensure runner image labels use the ghcr.io/ prefix, e.g.:
+    ghcr.io/catthehacker/ubuntu:act-latest@sha256:...
+  Bare references (catthehacker/ubuntu:...) default to docker.io
+  and will not benefit from this credential.
+
+{{- else }}
+
+GHCR pull auth is DISABLED (runner.ghcrPullAuth.enabled=false).
+  Job image pulls from ghcr.io are anonymous (100 req/6h rate limit).
+  To enable: populate Vault keys and set runner.ghcrPullAuth.enabled=true.
+    vault kv patch {{ .Values.vault.secretPath }} \
+      ghcr-username=<service-account> ghcr-token=<PAT-read:packages>
+
+{{- end }}
