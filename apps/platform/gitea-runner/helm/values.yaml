@@ -22,7 +22,14 @@ runner:
   # "version was not found for this operating system" because it lacks
   # $ImageOS/tool-cache and has no python-versions manifest match for Debian 11.
   # Trade-off: ~1.5GB first pull vs ~1GB for node:20-bullseye; cached thereafter.
-  labels: "ubuntu-latest:docker://catthehacker/ubuntu:act-latest,self-hosted:docker://catthehacker/ubuntu:act-latest"
+  #
+  # Pinned to an immutable digest rather than the floating :act-latest tag so
+  # that a compromised upstream push cannot silently land new code in our CI.
+  # The human-readable tag is kept for discoverability; the @sha256 is what the
+  # runtime enforces. To upgrade: pull :act-latest, read the new digest via
+  #   docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/catthehacker/ubuntu:act-latest
+  # and update this line — the change will show up in git diff.
+  labels: "ubuntu-latest:docker://catthehacker/ubuntu:act-latest@sha256:15e550c0501533b336df62cd3c8ba530a77972b62180c3b4240a1222cb2cd1f3,self-hosted:docker://catthehacker/ubuntu:act-latest@sha256:15e550c0501533b336df62cd3c8ba530a77972b62180c3b4240a1222cb2cd1f3"
 
   # Number of concurrent jobs this runner will execute.
   capacity: 2
