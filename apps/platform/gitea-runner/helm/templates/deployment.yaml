@@ -123,5 +123,6 @@ spec:
           persistentVolumeClaim:
             claimName: dind-storage
           {{- else }}
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: {{ .Values.dind.storage.sizeLimit | default "20Gi" }}
           {{- end }}
