@@ -13,7 +13,16 @@ runner:
 
   # Labels advertised to Gitea — workflows use `runs-on: ubuntu-latest` or
   # `runs-on: self-hosted` to target this runner.
-  labels: "ubuntu-latest:docker://node:20-bullseye,self-hosted:docker://node:20-bullseye"
+  #
+  # Image choice: catthehacker/ubuntu:act-latest is the reference image for
+  # nektos/act and Gitea Actions. It has the standard GitHub Actions tool-cache
+  # (Python, Node, Go, Java, etc.) and sets $ImageOS=ubuntu22 so actions like
+  # setup-python, setup-node, and setup-go resolve prebuilt tarballs correctly.
+  # node:20-bullseye (previous image) is too minimal — setup-python fails with
+  # "version was not found for this operating system" because it lacks
+  # $ImageOS/tool-cache and has no python-versions manifest match for Debian 11.
+  # Trade-off: ~1.5GB first pull vs ~1GB for node:20-bullseye; cached thereafter.
+  labels: "ubuntu-latest:docker://catthehacker/ubuntu:act-latest,self-hosted:docker://catthehacker/ubuntu:act-latest"
 
   # Number of concurrent jobs this runner will execute.
   capacity: 2
