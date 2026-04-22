@@ -13,7 +13,23 @@ runner:
 
   # Labels advertised to Gitea — workflows use `runs-on: ubuntu-latest` or
   # `runs-on: self-hosted` to target this runner.
-  labels: "ubuntu-latest:docker://node:20-bullseye,self-hosted:docker://node:20-bullseye"
+  #
+  # Image choice: catthehacker/ubuntu:act-latest is the reference image for
+  # nektos/act and Gitea Actions. It has the standard GitHub Actions tool-cache
+  # (Python, Node, Go, Java, etc.) and sets $ImageOS=ubuntu22 so actions like
+  # setup-python, setup-node, and setup-go resolve prebuilt tarballs correctly.
+  # node:20-bullseye (previous image) is too minimal — setup-python fails with
+  # "version was not found for this operating system" because it lacks
+  # $ImageOS/tool-cache and has no python-versions manifest match for Debian 11.
+  # Trade-off: ~1.5GB first pull vs ~1GB for node:20-bullseye; cached thereafter.
+  #
+  # Pinned to an immutable digest rather than the floating :act-latest tag so
+  # that a compromised upstream push cannot silently land new code in our CI.
+  # The human-readable tag is kept for discoverability; the @sha256 is what the
+  # runtime enforces. To upgrade: pull :act-latest, read the new digest via
+  #   docker inspect --format='{{index .RepoDigests 0}}' ghcr.io/catthehacker/ubuntu:act-latest
+  # and update this line — the change will show up in git diff.
+  labels: "ubuntu-latest:docker://catthehacker/ubuntu:act-latest@sha256:15e550c0501533b336df62cd3c8ba530a77972b62180c3b4240a1222cb2cd1f3,self-hosted:docker://catthehacker/ubuntu:act-latest@sha256:15e550c0501533b336df62cd3c8ba530a77972b62180c3b4240a1222cb2cd1f3"
 
   # Number of concurrent jobs this runner will execute.
   capacity: 2
