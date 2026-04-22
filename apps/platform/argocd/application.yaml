@@ -21,6 +21,20 @@ spec:
               enabled: true
               additionalLabels:
                 release: kube-prometheus
+          # Cap blast radius of reconcile storms. Without limits the
+          # application-controller runs BestEffort and can monopolize a node
+          # (see issue #20: stuck Terminating PVC drove it to ~1.6 sustained
+          # cores on resilience-nuc, contributing to a 6.67x load-per-core
+          # alert). Requests sized above observed steady-state (~0.15 cores,
+          # ~641Mi); CPU limit chosen so even a full-throttle storm uses
+          # <=25% of the 8-core NUC.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              cpu: 2000m
+              memory: 1536Mi
         applicationSet:
           metrics:
             enabled: true
