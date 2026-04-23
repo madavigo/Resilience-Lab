@@ -21,6 +21,8 @@ data:
     container:
       network: bridge
       privileged: false
+      volumes:
+        - /certs/client:/certs/client:ro
       # `options: "--platform linux/amd64"` was previously set to pin jobs
       # to amd64, but act_runner v0.2.11 silently swallows the
       # container-create call when --platform is combined with a
