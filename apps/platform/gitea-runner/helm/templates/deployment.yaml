@@ -16,6 +16,8 @@ spec:
     metadata:
       labels:
         app: gitea-runner
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: gitea-runner
       {{- with .Values.imagePullSecrets }}
