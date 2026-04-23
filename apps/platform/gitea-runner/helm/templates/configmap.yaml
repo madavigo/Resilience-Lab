@@ -19,7 +19,7 @@ data:
       enabled: true
       dir: /data/cache
     container:
-      network: bridge
+      network: host
       privileged: false
       options: "-v /certs/client:/certs/client:ro"
       valid_volumes:
