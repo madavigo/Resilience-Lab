@@ -68,6 +68,21 @@ spec:
             cpu: 100m
             memory: 128Mi
 ---
+# PersistentVolumeClaim -- cache persists across workflow runs so the sync
+# doesn't re-scrape and re-upload every item on every new-library-item event.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rifftrax-poster-sync-cache
+  namespace: argo-events
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ceph-block
+  resources:
+    requests:
+      storage: 100Mi
+---
 # WorkflowTemplate -- runs riff-poster-sync against Emby RiffTrax library
 # Triggered by the Sensor when Emby fires a new-item webhook
 apiVersion: argoproj.io/v1alpha1
@@ -82,6 +97,10 @@ spec:
     secondsAfterCompletion: 86400    # keep completed workflows 24h for debugging
     secondsAfterSuccess: 3600
     secondsAfterFailure: 86400
+  volumes:
+    - name: cache
+      persistentVolumeClaim:
+        claimName: rifftrax-poster-sync-cache
   templates:
     - name: sync
       container:
@@ -98,7 +117,7 @@ spec:
               --host "$EMBY_HOST" \
               --api-key "$EMBY_API_KEY" \
               --library "$LIBRARY" \
-              --cache-dir /tmp/rifftrax-cache
+              --cache-dir /cache
         env:
           - name: GITEA_TOKEN
             valueFrom:
@@ -120,6 +139,9 @@ spec:
               secretKeyRef:
                 name: rifftrax-poster-sync
                 key: library
+        volumeMounts:
+          - name: cache
+            mountPath: /cache
         resources:
           requests:
             cpu: 100m
