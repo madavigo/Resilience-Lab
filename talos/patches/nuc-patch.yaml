@@ -33,9 +33,6 @@ machine:
       node-labels: "topology.kubernetes.io/zone=nuc"
 
 cluster:
-  # Allow scheduling on control plane (single-master lab)
-  allowSchedulingOnControlPlanes: true
-
   etcd:
     # Expose etcd metrics for Prometheus scraping
     extraArgs:
