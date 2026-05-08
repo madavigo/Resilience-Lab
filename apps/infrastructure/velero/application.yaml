@@ -31,6 +31,10 @@ spec:
 
         nodeAgent:
           podVolumePath: /var/lib/kubelet/pods
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
 
         initContainers:
           - name: velero-plugin-for-aws
