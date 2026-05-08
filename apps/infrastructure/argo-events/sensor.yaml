@@ -1,4 +1,8 @@
-# Sensor -- watches EventBus for Gitea issue-opened events and sends ntfy notification
+# Sensor -- watches EventBus for Gitea issue events and sends ntfy notifications.
+# Two triggers:
+#   notify-new-issue   — fires on action=opened  (new issue created)
+#   notify-new-comment — fires on action=created (new comment on any issue)
+# Each trigger uses `conditions` so they fire independently (OR semantics).
 apiVersion: argoproj.io/v1alpha1
 kind: Sensor
 metadata:
@@ -17,9 +21,19 @@ spec:
             type: string
             value:
               - "opened"
+    - name: gitea-comment-webhook
+      eventSourceName: emby-rifftrax
+      eventName: gitea-issues
+      filters:
+        data:
+          - path: body.action
+            type: string
+            value:
+              - "created"
   triggers:
     - template:
-        name: notify-ntfy
+        name: notify-new-issue
+        conditions: "gitea-issue-webhook"
         argoWorkflow:
           operation: submit
           source:
@@ -64,6 +78,57 @@ spec:
             - src:
                 dependencyName: gitea-issue-webhook
                 dataKey: body.issue.user.login
+              dest: spec.arguments.parameters.4.value
+      retryStrategy:
+        steps: 3
+        duration: 10s
+    - template:
+        name: notify-new-comment
+        conditions: "gitea-comment-webhook"
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: gitea-comment-notify-
+                namespace: argo-events
+              spec:
+                workflowTemplateRef:
+                  name: gitea-issue-notify
+                arguments:
+                  parameters:
+                    - name: issue-title
+                      value: placeholder
+                    - name: issue-number
+                      value: placeholder
+                    - name: issue-url
+                      value: placeholder
+                    - name: issue-body
+                      value: placeholder
+                    - name: issue-user
+                      value: placeholder
+          parameters:
+            - src:
+                dependencyName: gitea-comment-webhook
+                dataKey: body.issue.title
+              dest: spec.arguments.parameters.0.value
+            - src:
+                dependencyName: gitea-comment-webhook
+                dataKey: body.issue.number
+              dest: spec.arguments.parameters.1.value
+            - src:
+                dependencyName: gitea-comment-webhook
+                dataKey: body.comment.html_url
+              dest: spec.arguments.parameters.2.value
+            - src:
+                dependencyName: gitea-comment-webhook
+                dataKey: body.comment.body
+              dest: spec.arguments.parameters.3.value
+            - src:
+                dependencyName: gitea-comment-webhook
+                dataKey: body.comment.user.login
               dest: spec.arguments.parameters.4.value
       retryStrategy:
         steps: 3
