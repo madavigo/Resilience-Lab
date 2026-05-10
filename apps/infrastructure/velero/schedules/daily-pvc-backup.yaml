@@ -13,4 +13,12 @@ spec:
       - vault
       - authentik
       - observability
+      - wiki
+      - navidrome
+      - lux
+      - misterb
+      - toothy
+      - teleport
+      - gitea-runner
+      - media
     defaultVolumesToFsBackup: true
