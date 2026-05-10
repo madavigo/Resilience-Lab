@@ -1,0 +1,16 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-pvc-backup
+  namespace: velero
+  # No Helm or ArgoCD instance labels -- Backup CRs spawned at runtime are invisible to ArgoCD
+spec:
+  schedule: "0 2 * * *"
+  useOwnerReferencesInBackup: false
+  template:
+    ttl: 336h
+    includedNamespaces:
+      - vault
+      - authentik
+      - observability
+    defaultVolumesToFsBackup: true
