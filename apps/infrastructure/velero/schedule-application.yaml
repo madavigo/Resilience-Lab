@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero-schedule
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://git.madavigo.com/madavigo/Resilience-Lab.git
+    targetRevision: HEAD
+    path: apps/infrastructure/velero/schedules
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    automated:
+      prune: false      # never delete a Schedule or Backup ArgoCD did not create
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
