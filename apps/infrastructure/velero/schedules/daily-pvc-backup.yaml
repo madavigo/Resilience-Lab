@@ -21,4 +21,5 @@ spec:
       - teleport
       - gitea-runner
       - media
+      - argo-events
     defaultVolumesToFsBackup: true
