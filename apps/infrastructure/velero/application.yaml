@@ -43,17 +43,6 @@ spec:
               - mountPath: /target
                 name: plugins
 
-        schedules:
-          daily-pvc-backup:
-            disabled: false
-            schedule: "0 2 * * *"
-            template:
-              ttl: 336h
-              includedNamespaces:
-                - vault
-                - authentik
-                - observability
-              defaultVolumesToFsBackup: true
   destination:
     server: https://kubernetes.default.svc
     namespace: velero
