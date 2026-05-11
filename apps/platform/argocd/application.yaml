@@ -62,6 +62,18 @@ spec:
           params:
             server.insecure: "true"
           credentialTemplates: {}
+          cm:
+            resource.exclusions: |
+              - apiGroups:
+                  - velero.io
+                kinds:
+                  - Backup
+                  - BackupRepository
+                  - PodVolumeBackup
+                  - Restore
+                  - DeleteBackupRequest
+                clusters:
+                  - "*"
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
