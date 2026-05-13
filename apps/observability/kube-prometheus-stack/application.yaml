@@ -138,6 +138,24 @@ spec:
                 gnetId: 14237
                 revision: 1
                 datasource: Prometheus
+          # Separate Chromium-based renderer that Grafana calls over an
+          # in-cluster service. Required for "Export as image" / "Share →
+          # image" and for image-attached Alertmanager notifications.
+          imageRenderer:
+            enabled: true
+            replicas: 1
+            resources:
+              requests:
+                cpu: 50m
+                memory: 150Mi
+              limits:
+                cpu: 500m
+                memory: 600Mi
+            # The renderer accepts a URL from Grafana and fetches it. Limit
+            # egress so it can ONLY reach Grafana — prevents SSRF abuse.
+            networkPolicy:
+              limitIngress: true
+              limitEgress: true
 
         # --- Alertmanager ---
         alertmanager:
