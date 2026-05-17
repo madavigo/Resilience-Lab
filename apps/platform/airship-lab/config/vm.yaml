@@ -46,7 +46,7 @@ spec:
             name: airship-lab-rootdisk
         - name: cloudinit
           cloudInitNoCloud:
-            userDataSecretRef:
+            secretRef:
               name: airship-lab-cloudinit
             networkDataSecretRef:
               name: airship-lab-cloudinit
