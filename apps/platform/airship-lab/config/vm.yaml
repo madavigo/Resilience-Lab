@@ -14,11 +14,11 @@ spec:
         node-role/storage: "true"
       domain:
         cpu:
-          cores: 4
+          cores: 2
           sockets: 1
           threads: 1
         memory:
-          guest: 16Gi
+          guest: 8Gi
         devices:
           disks:
             - name: rootdisk
@@ -33,10 +33,10 @@ spec:
         resources:
           requests:
             cpu: "2"
-            memory: 16Gi
+            memory: 8Gi
           limits:
-            cpu: "4"
-            memory: 16Gi
+            cpu: "2"
+            memory: 8Gi
       networks:
         - name: default
           pod: {}
