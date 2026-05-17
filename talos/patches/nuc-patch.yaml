@@ -10,7 +10,7 @@
 machine:
   install:
     disk: /dev/nvme0n1
-    image: ghcr.io/siderolabs/installer:v1.9.0
+    image: ghcr.io/siderolabs/installer:v1.9.6
     bootloader: true
     wipe: true
 

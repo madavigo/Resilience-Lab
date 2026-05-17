@@ -11,7 +11,7 @@ machine:
   install:
     # Boot disk — NVMe system drive (confirmed: nvme0n1 has existing partitions)
     disk: /dev/nvme0n1
-    image: ghcr.io/siderolabs/installer:v1.9.0
+    image: ghcr.io/siderolabs/installer:v1.9.6
     bootloader: true
     wipe: true
 
