@@ -1,0 +1,11 @@
+apiVersion: kubevirt.io/v1
+kind: KubeVirt
+metadata:
+  name: kubevirt
+  namespace: kubevirt
+spec:
+  imagePullPolicy: IfNotPresent
+  workloads:
+    nodePlacement:
+      nodeSelector:
+        node-role/storage: "true"

@@ -1,0 +1,5 @@
+machine:
+  kernel:
+    modules:
+      - name: kvm_intel   # change to kvm_amd if nodes have AMD CPUs
+      - name: vhost_net

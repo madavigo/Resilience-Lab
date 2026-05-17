@@ -74,6 +74,13 @@ spec:
                   - DeleteBackupRequest
                 clusters:
                   - "*"
+              - apiGroups:
+                  - kubevirt.io
+                kinds:
+                  - VirtualMachineInstance
+                  - VirtualMachineInstanceMigration
+                clusters:
+                  - "*"
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
