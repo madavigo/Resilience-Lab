@@ -5,6 +5,15 @@ metadata:
   namespace: kubevirt
 spec:
   imagePullPolicy: IfNotPresent
+  # Empty configuration block: required to be a non-null object by the
+  # KubeVirt CRD under server-side apply. If we omit it, SSA tries to
+  # remove the field and the apply errors:
+  #   KubeVirt.kubevirt.io "kubevirt" is invalid: spec.configuration:
+  #     Invalid value: "null"
+  # Add real config fields here as needed (e.g. cpuAllocationRatio,
+  # featureGates) -- but don't reintroduce selinuxLauncherType, see
+  # commit b92ab58.
+  configuration: {}
   workloads:
     nodePlacement:
       nodeSelector:
