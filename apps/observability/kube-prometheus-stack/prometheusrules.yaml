@@ -659,3 +659,48 @@ spec:
               The Recyclarr CronJob has failed. Sonarr and Radarr quality
               profiles will drift from TRaSH Guides until the next successful
               run. Check pod logs in the media namespace.
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: resilience-lab-pod-lifecycle
+  namespace: observability
+  labels:
+    release: kube-prometheus
+spec:
+  groups:
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # StatefulSet pods stuck in Succeeded phase
+    #
+    # When a StatefulSet pod receives SIGTERM (node drain, eviction, manual
+    # delete) and all containers exit 0, the pod enters phase=Succeeded. The
+    # StatefulSet controller does NOT recreate Succeeded pods — they sit there
+    # forever, and the workload is silently down (no metrics, no logs, no
+    # service). This bit us with Loki and Prometheus simultaneously after a
+    # node event in May 2026.
+    #
+    # Fires after 5 minutes so it doesn't trip during legitimate brief
+    # transitions (e.g. orchestrated rolling updates).
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: pod.lifecycle
+      rules:
+
+        - alert: STSPodStuckSucceeded
+          expr: |
+            kube_pod_status_phase{phase="Succeeded"}
+              * on(namespace, pod) group_left()
+              kube_pod_owner{owner_kind="StatefulSet"}
+              > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              StatefulSet pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in Succeeded phase
+            description: >-
+              Pod {{ $labels.namespace }}/{{ $labels.pod }} (owned by a StatefulSet) has been
+              in Succeeded phase for 5+ minutes. StatefulSets do not auto-recreate Succeeded pods,
+              so this workload is silently down. Fix: `kubectl delete pod {{ $labels.pod }} -n {{ $labels.namespace }}`.
+              If a Multi-Attach error follows, also delete the stuck VolumeAttachment for the PVC.
