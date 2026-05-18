@@ -12,13 +12,27 @@ spec:
     spec:
       nodeSelector:
         node-role/storage: "true"
+      # Don't co-schedule on a storage worker that's running media pods --
+      # nzbget/lidarr/bazarr etc. are bursty and would fight the VM for CPU.
+      # One-sided: the VM refuses to land on a node already running media
+      # pods. (For the opposite direction -- media avoiding the VM's node --
+      # we'd also need anti-affinity rules on each media Deployment.)
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: Exists
+              namespaces: ["media"]
+              topologyKey: kubernetes.io/hostname
       domain:
         cpu:
-          cores: 2
+          cores: 4
           sockets: 1
           threads: 1
         memory:
-          guest: 8Gi
+          guest: 24Gi
         devices:
           disks:
             - name: rootdisk
@@ -33,10 +47,10 @@ spec:
         resources:
           requests:
             cpu: "1"
-            memory: 8Gi
+            memory: 24Gi
           limits:
-            cpu: "2"
-            memory: 8Gi
+            cpu: "4"
+            memory: 24Gi
       networks:
         - name: default
           pod: {}
