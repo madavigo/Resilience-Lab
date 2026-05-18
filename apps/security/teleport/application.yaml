@@ -75,6 +75,13 @@ spec:
                 audit_sessions_uri: "s3://teleport-recordings?region=us-east-1&endpoint=http://10.10.67.170:9003&disablesse=true&insecure=true"
             auth_service:
               session_recording: "proxy"
+              # Cluster-wide: multiplex all proxy protocols on :443 via TLS routing
+              # (ALPN + SNI). Required for node agents in restricted-network paths
+              # (e.g. the airship-lab VM going through the internal MetalLB IP) to
+              # actually establish reverse tunnels -- without this, only HTTPS web
+              # and direct multi-port modes work and the reverse-tunnel SNI gets
+              # the wrong cert.
+              proxy_listener_mode: multiplex
 
         extraEnv:
           - name: AWS_ACCESS_KEY_ID
