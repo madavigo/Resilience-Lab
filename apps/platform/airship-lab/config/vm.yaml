@@ -48,7 +48,11 @@ spec:
               masquerade: {}
         resources:
           requests:
-            cpu: "1"
+            # Storage workers run ~85% CPU-requested by other workloads; only
+            # 430-620m free per node. Keep this request small so the VM can
+            # actually schedule. limit stays at 4 cores so it can burst under
+            # load -- burstable QoS is fine for a learning lab.
+            cpu: "300m"
             memory: 24Gi
           limits:
             cpu: "4"
