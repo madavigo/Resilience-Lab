@@ -17,10 +17,12 @@ spec:
           persistence:
             storageClass: truenas-nfs
             size: 20Gi
+        loki:
           # Liveness probe — Loki maintainers advise caution because heavy
           # ingest can stall /ready, causing false restarts. Generous
           # thresholds (90s initial + 5 failures × 30s) keep it safe for
           # a homelab while still catching genuine hangs.
+          # Chart path is loki.livenessProbe (not singleBinary.livenessProbe).
           livenessProbe:
             httpGet:
               path: /ready
@@ -30,7 +32,6 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 5
-        loki:
           auth_enabled: false
           commonConfig:
             replication_factor: 1
