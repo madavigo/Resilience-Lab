@@ -175,6 +175,9 @@ spec:
                 - receiver: watchdog
                   matchers:
                     - alertname = "Watchdog"
+                  group_wait: 0s
+                  group_interval: 1m
+                  repeat_interval: 1m
                 # Route all warning/critical alerts from any namespace to Lux.
                 # continue: true allows future sibling routes (e.g. PagerDuty) to also match.
                 # repeat_interval: 4h is intentionally shorter than root 12h; Lux handles
