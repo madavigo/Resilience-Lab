@@ -117,9 +117,9 @@ alertmanager:
       group_interval: 5m
       repeat_interval: 12h
       routes:
-        # Silence the Watchdog heartbeat alert first — must precede the lux route
-        # so Watchdog is never forwarded to Lux even if it gains a severity label.
-        - receiver: "null"
+        # Route Watchdog to healthchecks.io dead man's switch — must precede the lux
+        # route so Watchdog is never forwarded to Lux even if it gains a severity label.
+        - receiver: watchdog
           matchers:
             - alertname = "Watchdog"
         # Route all warning/critical alerts from any namespace to Lux.
@@ -135,6 +135,10 @@ alertmanager:
           continue: true
     receivers:
       - name: "null"
+      - name: watchdog
+        webhook_configs:
+          - url: "https://hc-ping.com/ca2a0946-1685-4b39-8c95-b0cf5c443016"
+            send_resolved: false
       - name: lux
         webhook_configs:
           - url: "http://lux.lux.svc.cluster.local/webhooks/alertmanager"
