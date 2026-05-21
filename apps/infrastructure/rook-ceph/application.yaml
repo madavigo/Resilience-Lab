@@ -15,8 +15,6 @@ spec:
           enabled: true
           createPrometheusRules: true
         pspEnable: false
-        toolbox:
-          enabled: true
         csi:
           csiCephFSPluginTolerations:
             - key: node-role.kubernetes.io/control-plane
