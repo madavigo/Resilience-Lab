@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-config
+  namespace: argocd
+  annotations:
+    # Run after the cert-manager Helm chart (default wave 0) so the CRDs
+    # (ClusterIssuer, etc.) exist before these resources are applied.
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://git.madavigo.com/madavigo/Resilience-Lab.git
+    targetRevision: main
+    path: apps/platform/cert-manager/config
+    directory:
+      recurse: false
+      exclude: "application.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # ClusterIssuer and ClusterExternalSecret are cluster-scoped; allow them
+      # to be managed from this namespaced Application.
+      - ServerSideApply=true
