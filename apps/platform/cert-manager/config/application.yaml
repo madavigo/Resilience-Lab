@@ -28,7 +28,15 @@ spec:
       # ClusterIssuer and ClusterExternalSecret are cluster-scoped; allow them
       # to be managed from this namespaced Application.
       - ServerSideApply=true
-      # ESO's defaulting webhook adds fields (conversionStrategy, deletionPolicy,
-      # etc.) during apply that aren't in git. ServerSideDiff makes the diff use
-      # SSA dry-run semantics so webhook-defaulted fields don't appear as drift.
-      - ServerSideDiff=true
+  # ESO's defaulting webhook injects these fields into ClusterExternalSecret
+  # objects during admission, so they're always present in-cluster but absent
+  # from git. Ignoring them prevents ArgoCD from looping on perpetual drift.
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ClusterExternalSecret
+      jqPathExpressions:
+        - .spec.externalSecretMetadata
+        - .spec.externalSecretSpec.data[].remoteRef.conversionStrategy
+        - .spec.externalSecretSpec.data[].remoteRef.decodingStrategy
+        - .spec.externalSecretSpec.data[].remoteRef.metadataPolicy
+        - .spec.externalSecretSpec.target.deletionPolicy
