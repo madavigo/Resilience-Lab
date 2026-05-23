@@ -28,3 +28,7 @@ spec:
       # ClusterIssuer and ClusterExternalSecret are cluster-scoped; allow them
       # to be managed from this namespaced Application.
       - ServerSideApply=true
+      # ESO's defaulting webhook adds fields (conversionStrategy, deletionPolicy,
+      # etc.) during apply that aren't in git. ServerSideDiff makes the diff use
+      # SSA dry-run semantics so webhook-defaulted fields don't appear as drift.
+      - ServerSideDiff=true
