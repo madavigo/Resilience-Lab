@@ -140,7 +140,7 @@ spec:
 
         - alert: EtcdSnapshotFailed
           expr: |
-            kube_job_failed{namespace="etcd-backup", job_name=~"etcd-snapshot-.*"} > 0
+            kube_job_status_failed{namespace="etcd-backup", job_name=~"etcd-snapshot-.*"} > 0
           for: 1m
           labels:
             severity: critical
