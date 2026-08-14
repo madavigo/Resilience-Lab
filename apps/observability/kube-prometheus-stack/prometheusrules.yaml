@@ -660,6 +660,44 @@ spec:
               profiles will drift from TRaSH Guides until the next successful
               run. Check pod logs in the media namespace.
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # TrueNAS — smbd protocol-level health
+    #
+    # smbd wedged in an unkillable D-state on 2026-08-12 and again on
+    # 2026-08-14 (txg_sync stall from stuck SMB/Time Machine connections),
+    # silently breaking TrueNAS UI auth and the NFS shares the media
+    # namespace depends on, for 2+ days before anyone noticed. The
+    # smbd-healthcheck CronJob runs a real SMB negotiate/session-setup probe
+    # every 2 minutes — a bare TCP connect would not catch this, since the
+    # kernel completes the handshake even while smbd itself never responds.
+    #
+    # sum() deliberately drops the job_name label: each CronJob run gets a
+    # unique job_name, so without the aggregation every failed run would
+    # start a fresh alert series and `for:` would never accumulate.
+    # ──────────────────────────────────────────────────────────────────────────
+    - name: truenas
+      rules:
+
+        - alert: SMBHealthcheckFailing
+          expr: |
+            sum(kube_job_status_failed{namespace="smbd-healthcheck", job_name=~"smbd-healthcheck-.*"}) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "smbd on TrueNAS is not responding to SMB probes"
+            description: >
+              The smbd-healthcheck CronJob has failed to get a successful SMB
+              negotiate/session-setup response from TrueNAS (10.10.67.170)
+              for 5+ minutes. This matches the smbd D-state wedge seen on
+              2026-08-12 and 2026-08-14. SSH to truenas and check `uptime`
+              (load average pegged with low CPU usage is the signature),
+              `systemctl status smbd`, and `top` for a pegged txg_sync
+              process. A plain `systemctl restart smbd` will likely hang in
+              deactivating state even after SIGKILL — a forced reboot
+              (`reboot -f`, or SysRq `echo b > /proc/sysrq-trigger` if that
+              also hangs on its own sync) was required last time.
+
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

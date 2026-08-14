@@ -1,0 +1,66 @@
+# SMB protocol-level health check for TrueNAS.
+#
+# smbd wedged into an unkillable D-state on 2026-08-12 and again on
+# 2026-08-14 (txg_sync stalled by stuck SMB/Time Machine connections),
+# silently breaking TrueNAS UI auth and the NFS shares the media namespace
+# depends on for over 2 days before anyone noticed.
+#
+# A bare TCP connect to :445 would NOT have caught this — the kernel
+# completes the handshake even while smbd itself is fully wedged and never
+# processes the connection (this is exactly what happened: smbstatus itself
+# hung, and a plain `systemctl restart smbd` couldn't even kill it with
+# SIGKILL). This probe forces a real SMB anonymous negotiate + session-setup
+# round trip, which requires smbd to actually be alive and processing
+# requests to return any response at all — success or protocol-level denial.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: smbd-healthcheck
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: smbd-healthcheck
+  namespace: smbd-healthcheck
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # Hard ceiling so a wedged smbd makes the Job fail/timeout rather than
+      # hang forever — this is the actual failure mode we're detecting.
+      activeDeadlineSeconds: 30
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: smbclient-probe
+              image: alpine:3.20
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  apk add --no-cache samba-client >/dev/null 2>&1
+                  OUTPUT=$(timeout 10 smbclient -L //10.10.67.170 -N -t 5 2>&1) || true
+                  echo "$OUTPUT"
+                  # "Anonymous login successful" proves smbd completed a real
+                  # negotiate + session-setup exchange. Whether the anonymous
+                  # tree-connect afterward is allowed doesn't matter — even a
+                  # denial there is a valid protocol response, which is all
+                  # we're checking for.
+                  echo "$OUTPUT" | grep -q "Anonymous login successful"
+              resources:
+                requests:
+                  cpu: "10m"
+                  memory: "32Mi"
+                limits:
+                  memory: "128Mi"

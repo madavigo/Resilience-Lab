@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: smbd-healthcheck
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://git.madavigo.com/madavigo/Resilience-Lab.git
+    targetRevision: main
+    path: apps/infrastructure/smbd-healthcheck
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: smbd-healthcheck
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
