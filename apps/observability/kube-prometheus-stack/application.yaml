@@ -189,12 +189,34 @@ spec:
                   group_interval: 5m
                   repeat_interval: 4h  # shorter than root 12h; Lux deduplicates via fire-count
                   continue: true
+                # Direct-to-ntfy backstop for criticals. Deliberately bypasses
+                # Lux: Lux returns 200 to AlertManager *before* it does any work,
+                # so a broken Lux (expired API key, no credit, bad deploy) drops
+                # alerts with no retry and no notification. This route is dumb on
+                # purpose — no LLM, no Gitea, no dependency beyond ntfy.sh — so
+                # enrichment via Lux is an upgrade, never a single point of failure.
+                # Duplicate pushes when Lux is healthy are the intended trade-off.
+                - receiver: ntfy-critical
+                  matchers:
+                    - severity = "critical"
+                  group_wait: 30s
+                  group_interval: 5m
+                  repeat_interval: 4h
+                  continue: true
             receivers:
               - name: "null"
               - name: watchdog
                 webhook_configs:
                   - url: "https://hc-ping.com/ca2a0946-1685-4b39-8c95-b0cf5c443016"
                     send_resolved: false
+              # URL is read from a mounted secret because it embeds the ntfy
+              # topic name, which is the only access control on the topic.
+              # ?template=alertmanager (ntfy built-in) renders the payload
+              # readably instead of dumping raw JSON to the phone.
+              - name: ntfy-critical
+                webhook_configs:
+                  - url_file: /etc/alertmanager/secrets/ntfy-alertmanager-url/url
+                    send_resolved: true
               - name: lux
                 webhook_configs:
                   - url: "http://lux.lux.svc.cluster.local/webhooks/alertmanager"
@@ -217,6 +239,7 @@ spec:
           alertmanagerSpec:
             secrets:
               - lux-webhook-token
+              - ntfy-alertmanager-url
             storage:
               volumeClaimTemplate:
                 spec:
