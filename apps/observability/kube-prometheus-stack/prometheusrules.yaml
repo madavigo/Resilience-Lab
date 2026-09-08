@@ -468,10 +468,30 @@ spec:
           annotations:
             summary: "No successful Velero backup in the last 26 hours"
             description: >
-              The daily-pvc-backup schedule last succeeded
-              {{ $value | humanizeDuration }} ago. A full day of PVC changes
-              is unprotected. Check Velero pod logs and BackupStorageLocation
-              status in the velero namespace.
+              The daily-pvc-backup schedule last fully succeeded
+              {{ $value | humanizeDuration }} ago. NOTE: this metric only
+              advances on a fully Completed backup -- a PartiallyFailed run
+              still copies data but leaves it frozen. Before assuming data
+              loss, check the backup phase and per-item errors:
+              kubectl get backups -n velero --sort-by=.metadata.creationTimestamp
+              If phase is PartiallyFailed, see VeleroBackupPartiallyFailed.
+
+        - alert: VeleroBackupPartiallyFailed
+          expr: |
+            increase(velero_backup_partial_failure_total{schedule="daily-pvc-backup"}[26h]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Velero daily-pvc-backup completed with errors (PartiallyFailed)"
+            description: >
+              The daily-pvc-backup schedule finished but reported item-level
+              errors, so it did NOT advance
+              velero_backup_last_successful_timestamp. Volume data is usually
+              still captured -- verify with:
+              kubectl get podvolumebackups -n velero -l velero.io/backup-name=<backup>
+              A recurring single error is most often a namespace listed in
+              spec.template.includedNamespaces that no longer exists.
 
     # ──────────────────────────────────────────────────────────────────────────
     # ArgoCD application sync & health
