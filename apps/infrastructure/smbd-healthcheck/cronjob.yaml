@@ -36,20 +36,36 @@ spec:
     spec:
       # Hard ceiling so a wedged smbd makes the Job fail/timeout rather than
       # hang forever — this is the actual failure mode we're detecting.
-      activeDeadlineSeconds: 30
+      #
+      # activeDeadlineSeconds counts from Job start, so it also covers pod
+      # scheduling and any image pull. The probe itself finishes in under a
+      # second, but a cold node pulling the 34MB image needs headroom, so
+      # this is 60s rather than the old 30s. Still below the 120s schedule
+      # interval, so concurrencyPolicy: Forbid can never stack runs.
+      activeDeadlineSeconds: 60
       backoffLimit: 0
       template:
         spec:
           restartPolicy: Never
           containers:
             - name: smbclient-probe
-              image: alpine:3.20
+              # samba-client is baked into the image. This previously ran
+              # `apk add --no-cache samba-client` on every execution, which
+              # put the Alpine CDN in the path of the SMB health signal:
+              # a slow or failing package install burned the Job's deadline
+              # and surfaced as DeadlineExceeded, indistinguishable from
+              # smbd actually being wedged. That misfired on 2026-09-10
+              # 02:12Z, producing a ~9 minute gap in successful probes with
+              # no SMB error code to explain it, and it muddied the triage
+              # of the genuine 2026-09-03/04 outage (see #61).
+              #
+              # Digest-pinned so the probe can never change underneath us.
+              image: crazymax/samba:4.23.8@sha256:b37f7af97c773eddb593537f64da6389e5ee6695bcecf44f3ba1a8a6bcf34125
               command:
                 - sh
                 - -c
                 - |
                   set -e
-                  apk add --no-cache samba-client >/dev/null 2>&1
                   OUTPUT=$(timeout 10 smbclient -L //10.10.67.170 -N -t 5 2>&1) || true
                   echo "$OUTPUT"
                   # "Anonymous login successful" proves smbd completed a real
