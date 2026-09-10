@@ -21,4 +21,5 @@ spec:
       - gitea-runner
       - media
       - argo-events
+      - librechat
     defaultVolumesToFsBackup: true
