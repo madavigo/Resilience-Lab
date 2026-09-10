@@ -21,6 +21,14 @@ data:
             # instead of public Cloudflare records which are unreachable in-cluster.
             10.10.67.1 git.madavigo.com
             10.10.70.1 teleport.madavigo.com
+            # Points at the ingress-nginx LB. Workloads doing server-side OIDC
+            # against Authentik (token exchange, discovery, userinfo) otherwise
+            # egress to Cloudflare and get an HAProxy 503 -- the hairpin back
+            # in doesn't complete. Apps that let you override each endpoint
+            # individually (Grafana) use the authentik-server Service instead;
+            # this is for the ones that take a single issuer URL and read the
+            # rest from the discovery document.
+            10.10.70.0 auth.madavigo.com
             fallthrough
         }
 
