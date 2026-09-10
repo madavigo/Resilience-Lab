@@ -691,25 +691,59 @@ spec:
     # every 2 minutes — a bare TCP connect would not catch this, since the
     # kernel completes the handshake even while smbd itself never responds.
     #
-    # sum() deliberately drops the job_name label: each CronJob run gets a
-    # unique job_name, so without the aggregation every failed run would
-    # start a fresh alert series and `for:` would never accumulate.
+    # We alert on the AGE OF THE LAST SUCCESS, not on a count of failed Jobs.
+    # The previous expression —
+    #     sum(kube_job_status_failed{namespace="smbd-healthcheck", ...}) > 0
+    # — latched permanently: kube_job_status_failed is emitted per Job
+    # OBJECT, and failedJobsHistoryLimit: 3 keeps three failed Jobs in the
+    # API until three NEW failures evict them. So the first outage pinned
+    # the alert on forever. In practice it fired continuously from
+    # 2026-08-26 22:56 to 2026-09-08 (12.8 days, one unbroken block) while
+    # smbd was healthy for all but ~45 minutes of that span, and it masked
+    # a genuine 6-minute SMB drop during the 2026-09-08 TrueNAS upgrade.
+    #
+    # kube_job_status_completion_time is only set on SUCCESS, and
+    # successfulJobsHistoryLimit: 3 on a */2 schedule guarantees a fresh
+    # sample whenever smbd is answering. max() drops the per-run job_name
+    # label so the series is stable and `for:` can accumulate.
+    #
+    # Threshold picked from 30 days of measured data: healthy staleness
+    # peaked below 180s in 599 of 604 hours, and every one of the five
+    # anomalous hours sat at 475s or above — nothing ever landed between
+    # 180s and 475s. 300s sits in that empty band, so it has no false
+    # positives, and `for: 5m` on top means "no successful SMB probe for
+    # ~10 minutes". That deliberately rides out short reboots (the
+    # 2026-09-08 upgrade breached for only 2 minutes) while still catching
+    # both real wedges (2026-08-26 breached for 8 min, 2026-09-03 for 10).
+    # Drop `for:` to 2m if you would rather be paged for planned reboots.
+    #
+    # The absent() arm is a dead-man's switch: if the CronJob, its
+    # namespace, or kube-state-metrics disappears, the staleness expression
+    # returns no series and would silently stop alerting.
     # ──────────────────────────────────────────────────────────────────────────
     - name: truenas
       rules:
 
         - alert: SMBHealthcheckFailing
           expr: |
-            sum(kube_job_status_failed{namespace="smbd-healthcheck", job_name=~"smbd-healthcheck-.*"}) > 0
+            (
+              time()
+              - max(kube_job_status_completion_time{namespace="smbd-healthcheck", job_name=~"smbd-healthcheck-.*"})
+            ) > 300
+            or
+            absent(kube_job_status_completion_time{namespace="smbd-healthcheck", job_name=~"smbd-healthcheck-.*"})
           for: 5m
           labels:
             severity: critical
           annotations:
             summary: "smbd on TrueNAS is not responding to SMB probes"
             description: >
-              The smbd-healthcheck CronJob has failed to get a successful SMB
+              No smbd-healthcheck probe has gotten a successful SMB
               negotiate/session-setup response from TrueNAS (10.10.67.170)
-              for 5+ minutes. This matches the smbd D-state wedge seen on
+              for 10+ minutes (or the probe itself has stopped reporting —
+              check that the CronJob in the smbd-healthcheck namespace still
+              exists and that kube-state-metrics is up). This matches the
+              smbd D-state wedge seen on
               2026-08-12 and 2026-08-14. SSH to truenas and check `uptime`
               (load average pegged with low CPU usage is the signature),
               `systemctl status smbd`, and `top` for a pegged txg_sync
